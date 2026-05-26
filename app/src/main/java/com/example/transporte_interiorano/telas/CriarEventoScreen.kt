@@ -2,8 +2,10 @@ package com.example.transporte_interiorano.telas
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState // 🆕 IMPORTAÇÃO ADICIONADA
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll // 🆕 IMPORTAÇÃO ADICIONADA
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -21,12 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.ui.theme.*
 
-// ALTERAÇÃO: Adicionamos mais 2 campos 'String' no 'aoPublicarEvento' para ele saber levar as cidades adiante.
 @Composable
 fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String, String, String) -> Unit, aoClicarSair: () -> Unit) {
     var nomeEvento by remember { mutableStateOf("") }
-
-    // INCLUSÃO: Criamos as gavetinhas na memória do celular para guardar o que o motorista digitar nas cidades.
     var cidadeOrigem by remember { mutableStateOf("") }
     var origem by remember { mutableStateOf("") }
     var cidadeDestino by remember { mutableStateOf("") }
@@ -34,7 +33,7 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
     var horario by remember { mutableStateOf("") }
     var vagas by remember { mutableStateOf("") }
 
-    // ⏰ MÁSCARA VISUAL DO HORÁRIO CORRIGIDA (Matemática exata do cursor)
+    // ⏰ MÁSCARA VISUAL DO HORÁRIO
     val mascaraHorario = VisualTransformation { text ->
         val num = text.text.take(4)
         var formatado = ""
@@ -44,11 +43,10 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
         }
         val mapeamento = object : OffsetMapping {
             override fun originalToTransformed(offset: Int): Int {
-                if (offset <= 2) return offset // 🛡️ CORREÇÃO: Mantém o cursor seguro nos 2 primeiros números
-                if (offset <= 4) return offset + 1 // Empurra o cursor 1 casa pra frente depois que o ":" aparece
+                if (offset <= 2) return offset
+                if (offset <= 4) return offset + 1
                 return 5
             }
-
             override fun transformedToOriginal(offset: Int): Int {
                 if (offset <= 2) return offset
                 if (offset <= 5) return offset - 1
@@ -58,7 +56,13 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
         TransformedText(AnnotatedString(formatado), mapeamento)
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.White).padding(24.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()) // 🆕 COMANDO MÁGICO PARA ROLAGEM AQUI!
+    ) {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = aoClicarSair, modifier = Modifier.size(48.dp)) {
@@ -84,7 +88,6 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // INCLUSÃO: Desenhando a caixinha da Cidade de Origem na tela.
         OutlinedTextField(
             value = cidadeOrigem,
             onValueChange = { cidadeOrigem = it },
@@ -93,7 +96,6 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ALTERAÇÃO: Mudei o texto de "Origem" para "Endereço de Origem" para não confundir com a cidade.
         OutlinedTextField(
             value = origem,
             onValueChange = { origem = it },
@@ -102,7 +104,6 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // INCLUSÃO: Desenhando a caixinha da Cidade de Destino na tela.
         OutlinedTextField(
             value = cidadeDestino,
             onValueChange = { cidadeDestino = it },
@@ -111,7 +112,6 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ALTERAÇÃO: Mudei o texto de "Destino" para "Endereço de Destino".
         OutlinedTextField(
             value = destino,
             onValueChange = { destino = it },
@@ -124,7 +124,6 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // ⏰ CAMPO DE HORÁRIO ATUALIZADO COM A MÁSCARA SEGURA
             OutlinedTextField(
                 value = horario,
                 onValueChange = { novoValor ->
@@ -139,7 +138,6 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
                 visualTransformation = mascaraHorario
             )
 
-            // 🔢 CAMPO DE VAGAS
             OutlinedTextField(
                 value = vagas,
                 onValueChange = { novoValor ->
@@ -152,18 +150,15 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
             )
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.weight(1f, fill = false)) // Ajuste para não quebrar a rolagem
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = {
                 val horarioFinal = if (horario.length == 4) "${
-                    horario.substring(
-                        0,
-                        2
-                    )
+                    horario.substring(0, 2)
                 }:${horario.substring(2)}" else horario
 
-                // ALTERAÇÃO: Agora o botão empacota as duas cidades novas junto com o resto das informações!
                 aoPublicarEvento(
                     nomeEvento,
                     cidadeOrigem,
@@ -180,5 +175,7 @@ fun CriarEventoScreen(aoPublicarEvento: (String, String, String, String, String,
         ) {
             Text("Publicar Corrida", fontSize = 16.sp)
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }

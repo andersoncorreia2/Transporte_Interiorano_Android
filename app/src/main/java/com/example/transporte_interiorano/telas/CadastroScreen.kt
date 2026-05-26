@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -15,7 +14,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
@@ -32,6 +30,24 @@ import com.example.transporte_interiorano.BancoDeDados
 import com.example.transporte_interiorano.ui.theme.*
 
 // --- MÁSCARAS ---
+class CepVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val trimmed = if (text.text.length >= 8) text.text.substring(0..7) else text.text
+        var out = ""
+        for (i in trimmed.indices) {
+            out += trimmed[i]
+            if (i == 4) out += "-"
+        }
+        val offsetTranslator = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int =
+                if (offset <= 4) offset else if (offset <= 8) offset + 1 else 9
+            override fun transformedToOriginal(offset: Int): Int =
+                if (offset <= 5) offset else if (offset <= 9) offset - 1 else 8
+        }
+        return TransformedText(AnnotatedString(out), offsetTranslator)
+    }
+}
+
 class CpfVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val trimmed = if (text.text.length >= 11) text.text.substring(0..10) else text.text
@@ -117,6 +133,10 @@ fun CadastroScreen(
     var senhaVisivel by remember { mutableStateOf(false) }
     var cpfJaExiste by remember { mutableStateOf(false) }
 
+    // Lista de estados para o dropdown
+    var ufExpandido by remember { mutableStateOf(false) }
+    val estadosBrasil = listOf("AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO")
+
     val focusManager = LocalFocusManager.current
 
     Scaffold(
@@ -178,22 +198,7 @@ fun CadastroScreen(
 
             Text("ENDEREÇO", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = cep, onValueChange = { cep = it.take(8) }, label = { Text("CEP") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
-                )
-                OutlinedTextField(
-                    value = estado, onValueChange = { estado = it.take(2).uppercase() }, label = { Text("UF (Ex: PE)") }, modifier = Modifier.weight(0.5f),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                )
-            }
-
-            OutlinedTextField(
-                value = cidade, onValueChange = { cidade = it }, label = { Text("Cidade") }, modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-            )
-
+            // 1ª Linha: Rua e Nº
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = rua, onValueChange = { rua = it }, label = { Text("Rua/Avenida") }, modifier = Modifier.weight(2f),
@@ -205,6 +210,7 @@ fun CadastroScreen(
                 )
             }
 
+            // 2ª Linha: Complemento e Bairro
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = complemento, onValueChange = { complemento = it }, label = { Text("Complemento") }, modifier = Modifier.weight(1f),
@@ -215,6 +221,51 @@ fun CadastroScreen(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                 )
             }
+
+            // 3ª Linha: Cidade e UF (Dropdown)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = cidade, onValueChange = { cidade = it }, label = { Text("Cidade") }, modifier = Modifier.weight(2f),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = ufExpandido,
+                    onExpandedChange = { ufExpandido = !ufExpandido },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = estado,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("UF") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ufExpandido) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier.menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = ufExpandido,
+                        onDismissRequest = { ufExpandido = false }
+                    ) {
+                        estadosBrasil.forEach { uf ->
+                            DropdownMenuItem(
+                                text = { Text(uf) },
+                                onClick = {
+                                    estado = uf
+                                    ufExpandido = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 4ª Linha: CEP com máscara
+            OutlinedTextField(
+                value = cep, onValueChange = { cep = it.filter { char -> char.isDigit() }.take(8) }, label = { Text("CEP") }, modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                visualTransformation = CepVisualTransformation()
+            )
 
             Text("DADOS DA CONTA", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
 
@@ -244,12 +295,14 @@ fun CadastroScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(value = veiculo, onValueChange = { veiculo = it }, label = { Text("Modelo do Veículo") }, modifier = Modifier.fillMaxWidth())
                         Spacer(modifier = Modifier.height(8.dp))
+
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Placa ficou com weight 1.5f para ser mais larga!
                             OutlinedTextField(
-                                value = placa, onValueChange = { placa = it.uppercase().take(7) }, label = { Text("Placa") }, modifier = Modifier.weight(1f),
+                                value = placa, onValueChange = { placa = it.uppercase().take(7) }, label = { Text("Placa") }, modifier = Modifier.weight(1.5f),
                                 visualTransformation = PlacaVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                             )
-                            OutlinedTextField(value = vagas, onValueChange = { vagas = it }, label = { Text("Vagas Totais") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                            OutlinedTextField(value = vagas, onValueChange = { vagas = it }, label = { Text("Nº Vagas") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         }
                     }
                 }
@@ -257,7 +310,6 @@ fun CadastroScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // OS TRÊS BOTÕES DE VOLTA!
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
                     onClick = { if (!cpfJaExiste) aoConcluirCadastro(nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep) },

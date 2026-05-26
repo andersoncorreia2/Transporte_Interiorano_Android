@@ -2,8 +2,10 @@ package com.example.transporte_interiorano.telas
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState // 🆕 IMPORTAÇÃO ADICIONADA
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll // 🆕 IMPORTAÇÃO ADICIONADA
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
@@ -30,7 +32,6 @@ fun PerfilScreen(
     aoClicarSair: () -> Unit,
     aoClicarVoltar: () -> Unit,
     aoClicarExcluirConta: () -> Unit,
-    // 🆕 Truque: O valor padrão "= {}" evita que o MainActivity dê erro vermelho por falta de parâmetro!
     aoClicarEditar: () -> Unit = {}
 ) {
     Scaffold(
@@ -51,7 +52,8 @@ fun PerfilScreen(
                 .fillMaxSize()
                 .background(Color.White)
                 .padding(paddingValues)
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()), // 🆕 COMANDO MÁGICO PARA ROLAGEM AQUI!
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Avatar Circular
@@ -94,7 +96,7 @@ fun PerfilScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.weight(1f, fill = false)) // Ajuste para o peso não quebrar a rolagem
 
             // 🆕 NOVO BOTÃO: Editar Perfil
             Button(
