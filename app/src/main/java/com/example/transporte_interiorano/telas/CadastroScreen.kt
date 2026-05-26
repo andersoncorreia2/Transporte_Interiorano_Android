@@ -213,35 +213,50 @@ fun CadastroScreen(
             // 2ª Linha: Complemento e Bairro
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
-                    value = complemento, onValueChange = { complemento = it }, label = { Text("Complemento") }, modifier = Modifier.weight(1f),
+                    value = complemento, onValueChange = { complemento = it },
+                    label = { Text("Compl. (Opcional)") }, // Abreviado!
+                    modifier = Modifier.weight(1f),
+                    singleLine = true, // Impede que o texto pule linha
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                 )
                 OutlinedTextField(
-                    value = bairro, onValueChange = { bairro = it }, label = { Text("Bairro") }, modifier = Modifier.weight(1f),
+                    value = bairro, onValueChange = { bairro = it },
+                    label = { Text("Bairro") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                 )
             }
 
             // 3ª Linha: Cidade e UF (Dropdown)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 OutlinedTextField(
-                    value = cidade, onValueChange = { cidade = it }, label = { Text("Cidade") }, modifier = Modifier.weight(2f),
+                    value = cidade, onValueChange = { cidade = it },
+                    label = { Text("Cidade") },
+                    // Diminuímos um pouco o peso da cidade para dar mais espaço para o UF respirar
+                    modifier = Modifier.weight(1.3f),
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                 )
 
                 ExposedDropdownMenuBox(
                     expanded = ufExpandido,
                     onExpandedChange = { ufExpandido = !ufExpandido },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f) // Mais espaço para a seta caber do lado do texto
                 ) {
                     OutlinedTextField(
                         value = estado,
                         onValueChange = {},
                         readOnly = true,
+                        singleLine = true, // 🚨 O COMANDO MÁGICO QUE IMPEDE O TEXTO DE FICAR VERTICAL!
                         label = { Text("UF") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ufExpandido) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor()
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
                     ExposedDropdownMenu(
                         expanded = ufExpandido,
@@ -302,7 +317,7 @@ fun CadastroScreen(
                                 value = placa, onValueChange = { placa = it.uppercase().take(7) }, label = { Text("Placa") }, modifier = Modifier.weight(1.5f),
                                 visualTransformation = PlacaVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                             )
-                            OutlinedTextField(value = vagas, onValueChange = { vagas = it }, label = { Text("Nº Vagas") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                            OutlinedTextField(value = vagas, onValueChange = { vagas = it }, label = { Text("Vagas") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         }
                     }
                 }
