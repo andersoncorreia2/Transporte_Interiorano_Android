@@ -13,11 +13,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext // Inserido
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast // Inserido
 import com.example.transporte_interiorano.BancoDeDados
 import com.example.transporte_interiorano.Usuario
 import com.example.transporte_interiorano.ui.theme.*
@@ -50,6 +52,7 @@ fun EditarPerfilScreen(
     var ufExpandido by remember { mutableStateOf(false) }
     val estadosBrasil = listOf("AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO")
     var salvando by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -199,9 +202,14 @@ fun EditarPerfilScreen(
                     )
                     BancoDeDados.atualizarUsuarioNuvem(usuarioAtualizado) { sucesso ->
                         if (sucesso) {
-                            aoSalvar(usuarioAtualizado)
+                            // 🆕 MOSTRA A MENSAGEM DE SUCESSO
+                            Toast.makeText(context, "Atualização realizada com sucesso!", Toast.LENGTH_SHORT).show()
+
+                            aoSalvar(usuarioAtualizado) // volta para o perfil
+                        } else {
+                            salvando = false
+                            Toast.makeText(context, "Erro ao atualizar dados.", Toast.LENGTH_SHORT).show()
                         }
-                        salvando = false
                     }
                 },
                 enabled = !salvando,

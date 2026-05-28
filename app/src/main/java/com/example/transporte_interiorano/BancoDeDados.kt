@@ -241,7 +241,7 @@ object BancoDeDados {
                         telefone = res.getString("telefone"),
                         veiculo = res.optString("veiculo", ""),
                         placa = res.optString("placa", ""),
-                        vagas = res.optString("vagas", "0"), // <--- TEM DE SER "vagas" (plural)
+                        vagas = res.optString("vagas", ""), // <--- TEM DE SER "vagas" (plural)
                         senha = senhaRecebida,
                         rua = res.optString("rua", ""),
                         numero = res.optString("numero", ""),
@@ -361,9 +361,6 @@ object BancoDeDados {
                     "bairro": "${usuario.bairro}", "cidade": "${usuario.cidade}", "estado": "${usuario.estado}", "cep": "${usuario.cep}"
                 }"""
 
-
-
-
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json)
                 escritor.flush()
@@ -375,6 +372,29 @@ object BancoDeDados {
                 }
             } catch (erro: Exception) {
                 aoTerminar(false)
+            }
+        }
+    }
+    fun recuperarSenhaNuvem(email: String, cpf: String, novaSenha: String, aoTerminar: (Boolean, String) -> Unit) {
+        thread {
+            try {
+                val conexao = URL("https://transporte-interiorano-backend.onrender.com/recuperar_senha").openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.doOutput = true
+
+                val json = """{"email": "$email", "cpf": "$cpf", "senha": "$novaSenha"}"""
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json)
+                escritor.flush()
+
+                if (conexao.responseCode == 200) {
+                    aoTerminar(true, "Senha alterada com sucesso!")
+                } else {
+                    aoTerminar(false, "Erro: E-mail ou CPF incorretos.")
+                }
+            } catch (erro: Exception) {
+                aoTerminar(false, "Falha na conexão.")
             }
         }
     }

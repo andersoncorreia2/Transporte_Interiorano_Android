@@ -32,10 +32,25 @@ class MainActivity : ComponentActivity() {
                     var telaAtual by remember { mutableStateOf("login") }
                     var erroDeCadastro by remember { mutableStateOf("") }
                     var mensagemLogin by remember { mutableStateOf("") }
+
+                    // --- VARIÁVEIS DE ESTADO QUE FALTAVAM ---
                     var nomeLogado by remember { mutableStateOf("") }
+                    var cpfLogado by remember { mutableStateOf("") }
                     var emailLogado by remember { mutableStateOf("") }
+                    var telefoneLogado by remember { mutableStateOf("") }
                     var veiculoLogado by remember { mutableStateOf("") }
                     var placaLogada by remember { mutableStateOf("") }
+                    var vagasLogada by remember { mutableStateOf("") }
+                    var senhaLogada by remember { mutableStateOf("") }
+                    var ruaLogada by remember { mutableStateOf("") }
+                    var numeroLogado by remember { mutableStateOf("") }
+                    var complementoLogado by remember { mutableStateOf("") }
+                    var bairroLogado by remember { mutableStateOf("") }
+                    var cidadeLogada by remember { mutableStateOf("") }
+                    var estadoLogado by remember { mutableStateOf("") }
+                    var cepLogado by remember { mutableStateOf("") }
+                    // ------------------------------------------
+
                     var caronaSelecionada by remember { mutableStateOf<Carona?>(null) }
 
                     when (telaAtual) {
@@ -45,9 +60,20 @@ class MainActivity : ComponentActivity() {
                                 BancoDeDados.fazerLoginNuvem(email, senha) { usuarioEncontrado, erro ->
                                     if (usuarioEncontrado != null) {
                                         nomeLogado = usuarioEncontrado.nome
+                                        cpfLogado = usuarioEncontrado.cpf
                                         emailLogado = usuarioEncontrado.email
+                                        telefoneLogado = usuarioEncontrado.telefone
                                         veiculoLogado = usuarioEncontrado.veiculo
                                         placaLogada = usuarioEncontrado.placa
+                                        vagasLogada = usuarioEncontrado.vagas
+                                        senhaLogada = usuarioEncontrado.senha
+                                        ruaLogada = usuarioEncontrado.rua
+                                        numeroLogado = usuarioEncontrado.numero
+                                        complementoLogado = usuarioEncontrado.complemento
+                                        bairroLogado = usuarioEncontrado.bairro
+                                        cidadeLogada = usuarioEncontrado.cidade
+                                        estadoLogado = usuarioEncontrado.estado
+                                        cepLogado = usuarioEncontrado.cep
                                         mensagemLogin = ""
 
                                         if (usuarioEncontrado.veiculo.isNotEmpty()) {
@@ -170,23 +196,48 @@ class MainActivity : ComponentActivity() {
                         "editarPerfil" -> {
                             // Criamos um "Usuário" temporário só com o que temos guardado para a tela abrir
                             val usuarioParaEditar = Usuario(
-                                nome = nomeLogado, cpf = "", email = emailLogado, telefone = "",
-                                veiculo = veiculoLogado, placa = placaLogada, senha = "",
-                                rua = "", numero = "", complemento = "", bairro = "", cidade = "", estado = "", cep = ""
+                                nome = nomeLogado,
+                                cpf = "",
+                                email = emailLogado,
+                                telefone = telefoneLogado,
+                                veiculo = veiculoLogado,
+                                placa = placaLogada,
+                                vagas = vagasLogada,
+                                senha = "",
+                                rua = ruaLogada,
+                                numero = numeroLogado,
+                                complemento = complementoLogado,
+                                bairro = bairroLogado,
+                                cidade = cidadeLogada,
+                                estado = estadoLogado,
+                                cep = cepLogado,
                             )
 
                             EditarPerfilScreen(
-                                usuarioAtual = usuarioParaEditar,
+                                usuarioAtual = Usuario(
+                                    nome = nomeLogado,
+                                    cpf = cpfLogado,       // 👈 Certifique-se de que cpfLogado está preenchido!
+                                    email = emailLogado,
+                                    telefone = telefoneLogado,
+                                    veiculo = veiculoLogado,
+                                    placa = placaLogada,
+                                    vagas = vagasLogada,
+                                    senha = "",            // senha não deve ser editada aqui
+                                    rua = ruaLogada,       // 👈 Verifique se esta variável tem o valor do banco
+                                    numero = numeroLogado,
+                                    complemento = complementoLogado,
+                                    bairro = bairroLogado,
+                                    cidade = cidadeLogada,
+                                    estado = estadoLogado,
+                                    cep = cepLogado
+                                ),
                                 aoSalvar = { usuarioAtualizado ->
-                                    // Quando ele salva, atualizamos os dados na memória do telemóvel para refletir logo!
+                                    // ... (seu código de salvamento)
                                     nomeLogado = usuarioAtualizado.nome
-                                    veiculoLogado = usuarioAtualizado.veiculo
-                                    placaLogada = usuarioAtualizado.placa
-                                    telaAtual = "perfil"
+                                    // ... atualize as outras variáveis aqui também (rua, bairro, etc)
+                                    telaAtual = "perfil" // Isso já garante que ele volte para a página do perfil
                                 },
-                                aoCancelar = {
-                                    telaAtual = "perfil"
-                                }
+                                aoCancelar = { telaAtual = "perfil" }
                             )
                         }
                     }
