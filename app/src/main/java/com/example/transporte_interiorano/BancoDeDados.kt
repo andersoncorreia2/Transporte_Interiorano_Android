@@ -230,6 +230,9 @@ object BancoDeDados {
                 escritor.write(json)
                 escritor.flush()
 
+                // 🆕 ADICIONE ESTA LINHA PARA VER O CÓDIGO NO LOGCAT
+                //android.util.Log.d("DEBUG_LOGIN", "Código de resposta: ${conexao.responseCode}")
+
                 if (conexao.responseCode == 200) {
                     val res = JSONObject(conexao.inputStream.bufferedReader().readText())
 

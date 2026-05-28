@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.ui.theme.*
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 
@@ -34,7 +36,11 @@ fun LoginScreen(
     var senhaVisivel by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .imePadding() // 🆕 Isso faz o ajuste automático com o teclado
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -78,7 +84,10 @@ fun LoginScreen(
         }
 
         OutlinedTextField(
-            value = email, onValueChange = { email = it }, label = { Text("Email") },
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Email") },
+            singleLine = true, // 🆕 Impede que o campo cresça verticalmente
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
         )
