@@ -66,8 +66,9 @@ fun MinhasSolicitacoesScreen(
 fun CartaoEventoMotorista(carona: Carona) {
     val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == carona.id }
 
-    // ✅ CÓDIGO NOVO
     val totalVagas = carona.vagas.toIntOrNull() ?: 0
+    // ALTERAÇÃO: Agora só conta como ocupada se for "Aceito" ou "Pendente"
+    // (Expirado não ocupa vaga!)
     val qtdOcupadas = pedidosDaCarona.count {
         val status = it.status.lowercase()
         status.contains("aceito") || status.contains("pendente")
@@ -120,6 +121,10 @@ fun CartaoEventoMotorista(carona: Carona) {
 fun LinhaPassageiro(pedido: Pedido) {
     val statusLimpo = pedido.status.lowercase()
 
+    // Essa peça nova esconde o pedido expirado do motorista:
+    if (statusLimpo.contains("expirado")) {
+        return
+    }
     Surface(color = Color(0xFFF9F9F9), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Text("🙋‍♂️ ${pedido.passageiro}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = AzulPrincipal)

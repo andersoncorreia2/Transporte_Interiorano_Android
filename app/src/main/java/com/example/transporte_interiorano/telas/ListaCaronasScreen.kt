@@ -144,14 +144,16 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
             // 4. ÁREA DOS BOTÕES (Largos e destacados)
             if (meuPedido != null) {
                 val statusLimpo = meuPedido.status.trim().lowercase()
+                val ehExpirado = statusLimpo.contains("expirado")
                 val corStatus = when {
                     statusLimpo.contains("aceito") -> VerdeBotao
-                    statusLimpo.contains("recusado") -> VermelhoErro
+                    statusLimpo.contains("recusado") || statusLimpo.contains("expirado") -> VermelhoErro // <--- Ficará vermelho também
                     else -> AmareloAviso
                 }
                 val textoComEmoji = when {
                     statusLimpo.contains("aceito") -> "Status: Aceito ✅"
                     statusLimpo.contains("recusado") -> "Status: Recusado ❌"
+                    statusLimpo.contains("expirado") -> "Status: Expirado ⏳" // <--- ADICIONE ESTA LINHA
                     else -> "Status: Pendente ⏳"
                 }
 

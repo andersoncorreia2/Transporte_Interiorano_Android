@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.Carona
 import com.example.transporte_interiorano.ui.theme.*
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarVoltar: () -> Unit) {
@@ -26,17 +28,24 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
             IconButton(onClick = aoClicarVoltar, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = AzulPrincipal)
             }
-            Text("Detalhes da Carona", color = AzulPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Detalhes da Carona",
+                color = AzulPrincipal,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         if (caronaInfo != null) {
             // 🆕 INÍCIO DO CÁLCULO DE VAGAS EM TEMPO REAL
-            val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == caronaInfo.id }
+            val pedidosDaCarona =
+                BancoDeDados.todosOsPedidos.filter { it.caronaId == caronaInfo.id }
             val totalVagas = caronaInfo.vagas.toIntOrNull() ?: 0
             val qtdOcupadas = pedidosDaCarona.count {
                 val status = it.status.lowercase()
+                // Só conta vaga ocupada se for "aceito" ou "pendente" (ainda no prazo)
                 status.contains("aceito") || status.contains("pendente")
             }
             val vagasRestantes = totalVagas - qtdOcupadas
@@ -84,12 +93,12 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
             }
             //Texto antigo
             //Row(verticalAlignment = Alignment.CenterVertically) {
-                //Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray)
-                //Spacer(modifier = Modifier.width(16.dp))
-                //Column {
-                    //Text("Vagas disponíveis", fontSize = 12.sp, color = Color.Gray)
-                    //Text("${caronaInfo.vagas} vagas", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                //}
+            //Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray)
+            //Spacer(modifier = Modifier.width(16.dp))
+            //Column {
+            //Text("Vagas disponíveis", fontSize = 12.sp, color = Color.Gray)
+            //Text("${caronaInfo.vagas} vagas", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            //}
             //}
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -104,19 +113,43 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("$", fontSize = 24.sp, color = Color.Gray, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+                Text(
+                    "$",
+                    fontSize = 24.sp,
+                    color = Color.Gray,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text("Valor", fontSize = 12.sp, color = Color.Gray)
-                    Text("Gratuito", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdeBotao)
+                    Text(
+                        "Gratuito",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = VerdeBotao
+                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
+        // 1. Defina o contexto logo antes do botão
+        val context = LocalContext.current
+
         Button(
-            onClick = aoConfirmarCarona,
+            onClick = {
+                // Exibe o aviso para o passageiro
+                Toast.makeText(
+                    context,
+                    "⚠️ Atenção: Você tem 15 minutos para efetuar o pagamento, ou a vaga será liberada!",
+                    Toast.LENGTH_LONG
+                ).show()
+
+                // Executa a confirmação original
+                aoConfirmarCarona()
+            },
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao)
