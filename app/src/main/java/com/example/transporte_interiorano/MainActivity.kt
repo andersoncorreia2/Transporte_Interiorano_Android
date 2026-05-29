@@ -17,11 +17,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.transporte_interiorano.telas.*
 import com.example.transporte_interiorano.ui.theme.transporte_interioranoTheme
+import android.util.Log
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlin.concurrent.thread
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Inicializa seu radar existente
         BancoDeDados.ligarRadar()
+
+        // Adicione aqui a captura do token:
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                Log.d("FCM_TOKEN", "Token capturado na MainActivity: ${task.result}")
+            } else {
+                Log.e("FCM_TOKEN", "Falha ao capturar token", task.exception)
+            }
+        }
 
         setContent {
             transporte_interioranoTheme {
@@ -57,7 +74,10 @@ class MainActivity : ComponentActivity() {
                         "login" -> LoginScreen(
                             aoFazerLogin = { email, senha ->
                                 mensagemLogin = "Conectando ao servidor..."
-                                BancoDeDados.fazerLoginNuvem(email, senha) { usuarioEncontrado, erro ->
+                                BancoDeDados.fazerLoginNuvem(
+                                    email,
+                                    senha
+                                ) { usuarioEncontrado, erro ->
                                     if (usuarioEncontrado != null) {
                                         nomeLogado = usuarioEncontrado.nome
                                         cpfLogado = usuarioEncontrado.cpf
@@ -75,7 +95,12 @@ class MainActivity : ComponentActivity() {
                                         estadoLogado = usuarioEncontrado.estado
                                         cepLogado = usuarioEncontrado.cep
                                         mensagemLogin = ""
-
+                                        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                                            if (task.isSuccessful) {
+                                                val token = task.result
+                                                enviarTokenParaServidor(usuarioEncontrado.email, token)
+                                            }
+                                        }
                                         if (usuarioEncontrado.veiculo.isNotEmpty()) {
                                             telaAtual = "status"
                                         } else {
@@ -94,13 +119,31 @@ class MainActivity : ComponentActivity() {
                             },
                             mensagemErro = mensagemLogin
                         )
+
                         "cadastro" -> CadastroScreen(
                             aoConcluirCadastro = { nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep ->
                                 if (nome.isBlank() || cpf.isBlank() || telefone.isBlank() || email.isBlank() || senha.isBlank() || rua.isBlank() || numero.isBlank() || bairro.isBlank() || cidade.isBlank() || estado.isBlank() || cep.isBlank()) {
-                                    erroDeCadastro = "Preencha todos os campos obrigatórios, incluindo o endereço!"
+                                    erroDeCadastro =
+                                        "Preencha todos os campos obrigatórios, incluindo o endereço!"
                                 } else {
                                     erroDeCadastro = "Conectando ao servidor..."
-                                    BancoDeDados.cadastrarUsuarioNuvem(nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep) { sucesso, mensagem ->
+                                    BancoDeDados.cadastrarUsuarioNuvem(
+                                        nome,
+                                        cpf,
+                                        telefone,
+                                        email,
+                                        senha,
+                                        veiculo,
+                                        placa,
+                                        vagas,
+                                        rua,
+                                        numero,
+                                        complemento,
+                                        bairro,
+                                        cidade,
+                                        estado,
+                                        cep
+                                    ) { sucesso, mensagem ->
                                         if (sucesso) {
                                             erroDeCadastro = ""
                                             telaAtual = "login"
@@ -116,10 +159,20 @@ class MainActivity : ComponentActivity() {
                             },
                             mensagemErro = erroDeCadastro
                         )
+
                         "criarEvento" -> CriarEventoScreen(
                             aoPublicarEvento = { nomeEvento, cidadeOrigem, origem, cidadeDestino, destino, horario, vagas ->
                                 val origemComEvento = "$nomeEvento - $origem"
-                                BancoDeDados.enviarCaronaParaServidor(cidadeOrigem, origemComEvento, cidadeDestino, destino, horario, vagas, nomeLogado)
+                                BancoDeDados.enviarCaronaParaServidor(
+                                    nomeEvento = nomeEvento,
+                                    cidadeOrigem = cidadeOrigem,
+                                    enderecoOrigem = origem,
+                                    cidadeDestino = cidadeDestino,
+                                    enderecoDestino = destino,
+                                    horario = horario,
+                                    vagas = vagas,
+                                    motorista = nomeLogado
+                                )
                                 BancoDeDados.temEventoAtivo = true
                                 telaAtual = "status"
                             },
@@ -127,6 +180,7 @@ class MainActivity : ComponentActivity() {
                                 telaAtual = "status"
                             }
                         )
+
                         "listaCaronas" -> ListaCaronasScreen(
                             nomeLogado = nomeLogado,
                             aoClicarEmSolicitar = { carona ->
@@ -143,6 +197,7 @@ class MainActivity : ComponentActivity() {
                                 telaAtual = "perfil"
                             }
                         )
+
                         "detalhes" -> DetalhesScreen(
                             caronaInfo = caronaSelecionada,
                             aoConfirmarCarona = {
@@ -153,6 +208,7 @@ class MainActivity : ComponentActivity() {
                             },
                             aoClicarVoltar = { telaAtual = "listaCaronas" }
                         )
+
                         "status" -> MinhasSolicitacoesScreen(
                             isMotorista = veiculoLogado.isNotEmpty(),
                             nomeMotoristaLogado = nomeLogado,
@@ -167,6 +223,7 @@ class MainActivity : ComponentActivity() {
                                 telaAtual = "criarEvento"
                             }
                         )
+
                         "perfil" -> PerfilScreen(
                             nome = nomeLogado,
                             email = emailLogado,
@@ -179,7 +236,8 @@ class MainActivity : ComponentActivity() {
                                 telaAtual = "login"
                             },
                             aoClicarVoltar = {
-                                telaAtual = if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                                telaAtual =
+                                    if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
                             },
                             aoClicarExcluirConta = {
                                 BancoDeDados.excluirUsuario(emailLogado)
@@ -193,6 +251,7 @@ class MainActivity : ComponentActivity() {
                                 telaAtual = "editarPerfil"
                             }
                         )
+
                         "editarPerfil" -> {
                             // Criamos um "Usuário" temporário só com o que temos guardado para a tela abrir
                             val usuarioParaEditar = Usuario(
@@ -232,16 +291,46 @@ class MainActivity : ComponentActivity() {
                                     cep = cepLogado
                                 ),
                                 aoSalvar = { usuarioAtualizado ->
-                                    // ... (seu código de salvamento)
                                     nomeLogado = usuarioAtualizado.nome
-                                    // ... atualize as outras variáveis aqui também (rua, bairro, etc)
-                                    telaAtual = "perfil" // Isso já garante que ele volte para a página do perfil
+                                    telefoneLogado = usuarioAtualizado.telefone
+                                    veiculoLogado = usuarioAtualizado.veiculo
+                                    placaLogada = usuarioAtualizado.placa
+                                    vagasLogada = usuarioAtualizado.vagas
+                                    ruaLogada = usuarioAtualizado.rua
+                                    numeroLogado = usuarioAtualizado.numero
+                                    complementoLogado = usuarioAtualizado.complemento
+                                    bairroLogado = usuarioAtualizado.bairro
+                                    cidadeLogada = usuarioAtualizado.cidade
+                                    estadoLogado = usuarioAtualizado.estado
+                                    cepLogado = usuarioAtualizado.cep
+
+                                    telaAtual = "perfil" // Isso força o App a voltar para a tela de perfil
                                 },
                                 aoCancelar = { telaAtual = "perfil" }
                             )
                         }
                     }
                 }
+            }
+        }
+    }
+    fun enviarTokenParaServidor(email: String, token: String) {
+        thread {
+            try {
+                val url = URL("http://192.168.1.67:5000/registrar_token")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.doOutput = true
+
+                val json = """{"email": "$email", "token": "$token"}"""
+                val escritor = java.io.OutputStreamWriter(conexao.outputStream)
+                escritor.write(json)
+                escritor.flush()
+
+                Log.d("FCM_TOKEN", "Resposta do servidor: ${conexao.responseCode}")
+            } catch (e: Exception) {
+                Log.e("FCM_TOKEN", "Erro: ${e.message}")
             }
         }
     }

@@ -120,10 +120,23 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 3. HORÁRIO E VAGAS
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text("👥 Vagas Livres: $vagasRestantes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if(vagasRestantes <= 0) VermelhoErro else VerdeBotao)
+            // 3. HORÁRIO E VAGAS (Agora em coluna, um embaixo do outro)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "⏰ Partida: ${carona.horario}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+
+                Spacer(modifier = Modifier.height(4.dp)) // Um pequeno espaço entre eles
+
+                Text(
+                    "👥 Vagas Livres: $vagasRestantes",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if(vagasRestantes <= 0) VermelhoErro else VerdeBotao
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

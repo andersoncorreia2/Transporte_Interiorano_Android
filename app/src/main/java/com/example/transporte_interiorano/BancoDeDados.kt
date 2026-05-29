@@ -62,31 +62,44 @@ object BancoDeDados {
     }
 
     fun enviarCaronaParaServidor(
+        nomeEvento: String,
         cidadeOrigem: String,
-        origem: String,
+        enderecoOrigem: String,
         cidadeDestino: String,
-        destino: String,
+        enderecoDestino: String,
         horario: String,
         vagas: String,
         motorista: String
     ) {
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/caronas").openConnection() as HttpURLConnection
+                val conexao = URL("https://transporte-interiorano-backend.onrender.com/caronas").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
 
-                val json =
-                    """{"cidade_origem": "$cidadeOrigem", "origem": "$origem", "cidade_destino": "$cidadeDestino", "destino": "$destino", "horario": "$horario", "vagas": "$vagas", "motorista": "$motorista"}"""
+                // Este JSON agora bate exatamente com as colunas que você criou no app.py
+                val json = """{
+                    "evento_nome": "$nomeEvento",
+                    "cidade_origem": "$cidadeOrigem",
+                    "endereco_origem": "$enderecoOrigem",
+                    "cidade_destino": "$cidadeDestino",
+                    "endereco_destino": "$enderecoDestino",
+                    "horario": "$horario",
+                    "vagas": "$vagas",
+                    "motorista": "$motorista"
+                }"""
 
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json)
                 escritor.flush()
-                val code = conexao.responseCode
-                buscarCaronasDoServidor()
+
+                // O servidor responde 201 (criado), então forçamos a atualização da lista
+                if (conexao.responseCode == 201) {
+                    buscarCaronasDoServidor()
+                }
             } catch (erro: Exception) {
+                println("❌ Erro ao publicar carona: ${erro.message}")
             }
         }
     }
