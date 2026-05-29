@@ -9,10 +9,9 @@ import java.io.OutputStreamWriter
 import org.json.JSONArray
 import org.json.JSONObject
 
-// INCLUSÃO: Adicionamos cidadeOrigem e cidadeDestino na estrutura da Carona
+// Estruturas de Dados
 data class Carona(val id: Int = 0, val cidadeOrigem: String = "", val origem: String, val cidadeDestino: String = "", val destino: String, val horario: String, val vagas: String, val motorista: String)
 
-// ALTERAÇÃO: A estrutura do Usuário agora suporta os 7 campos novos de endereço!
 data class Usuario(
     val nome: String, val cpf: String, val email: String, val telefone: String,
     val veiculo: String = "", val placa: String = "", val senha: String = "", val vagas: String = "0",
@@ -20,6 +19,7 @@ data class Usuario(
     val bairro: String = "", val cidade: String = "", val estado: String = "", val cep: String = ""
 )
 
+// APENAS UMA DECLARAÇÃO DE PEDIDO
 data class Pedido(val idReal: Int, val caronaId: Int, val passageiro: String, val status: String)
 
 object BancoDeDados {
@@ -196,17 +196,27 @@ object BancoDeDados {
 
     fun buscarSolicitacoesDoServidor() {
         try {
-            val resposta =
-                URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").readText()
+            val resposta = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").readText()
             val jsonArray = JSONArray(resposta)
 
             val novaLista = mutableListOf<Pedido>()
             for (i in 0 until jsonArray.length()) {
                 val item = jsonArray.getJSONObject(i)
+                val status = item.getString("status")
+
+                // Lógica de tratamento do status
+                if (status == "Expirado") {
+                    // Aqui você pode adicionar um log para debug ou
+                    // tomar alguma ação específica no app
+                    println("⚠️ Aviso: Pedido ${item.getInt("id")} expirou!")
+                }
+
                 novaLista.add(
                     Pedido(
-                        idReal = item.getInt("id"), caronaId = item.getInt("carona_id"),
-                        passageiro = item.getString("passageiro"), status = item.getString("status")
+                        idReal = item.getInt("id"),
+                        caronaId = item.getInt("carona_id"),
+                        passageiro = item.getString("passageiro"),
+                        status = status // O status processado entra aqui
                     )
                 )
             }
