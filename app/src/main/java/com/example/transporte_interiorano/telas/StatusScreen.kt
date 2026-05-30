@@ -19,6 +19,7 @@ import com.example.transporte_interiorano.BancoDeDados
 import com.example.transporte_interiorano.Carona
 import com.example.transporte_interiorano.Pedido
 import com.example.transporte_interiorano.ui.theme.*
+import androidx.compose.runtime.*
 
 @Composable
 fun MinhasSolicitacoesScreen(
@@ -65,20 +66,12 @@ fun MinhasSolicitacoesScreen(
 @Composable
 fun CartaoEventoMotorista(carona: Carona) {
     val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == carona.id }
-
     val totalVagas = carona.vagas.toIntOrNull() ?: 0
-    // ALTERAÇÃO: Agora só conta como ocupada se for "Aceito" ou "Pendente"
-    // (Expirado não ocupa vaga!)
     val qtdOcupadas = pedidosDaCarona.count {
         val status = it.status.lowercase()
         status.contains("aceito") || status.contains("pendente")
     }
     val vagasRestantes = totalVagas - qtdOcupadas
-
-    // Código antigo
-    //val totalVagas = carona.vagas.toIntOrNull() ?: 0
-    //val qtdAceitos = pedidosDaCarona.count { it.status.lowercase().contains("aceito") }
-    //val vagasRestantes = totalVagas - qtdAceitos
 
     val partes = carona.origem.split(" - ", limit = 2)
     val eventoNome = if (partes.size > 1) partes[0] else "Evento"
@@ -87,7 +80,6 @@ fun CartaoEventoMotorista(carona: Carona) {
     Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp).border(1.dp, Color.LightGray, RoundedCornerShape(12.dp)), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text("Evento: $eventoNome", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
-            Spacer(modifier = Modifier.height(4.dp))
             Text("De: $origemReal  |  Para: ${carona.destino}", fontSize = 14.sp, color = Color.DarkGray)
             Text("Vagas Restantes: $vagasRestantes de $totalVagas", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if(vagasRestantes <= 0) VermelhoErro else VerdeBotao)
 
@@ -95,16 +87,16 @@ fun CartaoEventoMotorista(carona: Carona) {
             HorizontalDivider(thickness = 1.dp, color = Color.LightGray)
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text("Passageiros Solicitantes:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-            Spacer(modifier = Modifier.height(8.dp))
+            // FILTRO NOVO: O motorista SÓ vê quem ainda não foi recusado/expirado
+            val pedidosAtivos = pedidosDaCarona.filter {
+                !it.status.lowercase().contains("recusado") && !it.status.lowercase().contains("expirado")
+            }
 
-            if (pedidosDaCarona.isEmpty()) {
-                Text("Ninguém solicitou carona ainda.", fontSize = 14.sp, color = Color.LightGray)
+            if (pedidosAtivos.isEmpty()) {
+                Text("Nenhum pedido pendente ou aceito.", fontSize = 14.sp, color = Color.LightGray)
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    pedidosDaCarona.forEach { pedido ->
-                        LinhaPassageiro(pedido)
-                    }
+                    pedidosAtivos.forEach { pedido -> LinhaPassageiro(pedido) }
                 }
             }
 
@@ -120,36 +112,90 @@ fun CartaoEventoMotorista(carona: Carona) {
 @Composable
 fun LinhaPassageiro(pedido: Pedido) {
     val statusLimpo = pedido.status.lowercase()
+    var mostrarMotivo by remember { mutableStateOf(false) }
+    var motivo by remember { mutableStateOf("") }
 
-    // Essa peça nova esconde o pedido expirado do motorista:
-    if (statusLimpo.contains("expirado")) {
-        return
-    }
+    if (statusLimpo.contains("expirado")) return
+
     Surface(color = Color(0xFFF9F9F9), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Text("🙋‍♂️ ${pedido.passageiro}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = AzulPrincipal)
-            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "🙋‍♂️ ${pedido.passageiro}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = AzulPrincipal
+            )
 
             if (statusLimpo.contains("pendente")) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Aceito") }, colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao), modifier = Modifier.weight(1f).height(32.dp), shape = RoundedCornerShape(8.dp), contentPadding = PaddingValues(0.dp)) {
-                        Text("Aceitar", fontSize = 12.sp, color = Color.White)
-                    }
-                    Button(onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Recusado") }, colors = ButtonDefaults.buttonColors(containerColor = VermelhoErro), modifier = Modifier.weight(1f).height(32.dp), shape = RoundedCornerShape(8.dp), contentPadding = PaddingValues(0.dp)) {
-                        Text("Recusar", fontSize = 12.sp, color = Color.White)
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            BancoDeDados.responderPedidoMotorista(
+                                pedido.idReal,
+                                "Aceito"
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
+                        modifier = Modifier.weight(1f).height(32.dp)
+                    ) { Text("Aceitar", fontSize = 12.sp) }
+
+                    // BOTÃO RECUSAR COM MOTIVO
+                    Button(
+                        onClick = { mostrarMotivo = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = VermelhoErro),
+                        modifier = Modifier.weight(1f).height(32.dp)
+                    ) { Text("Recusar", fontSize = 12.sp) }
                 }
             } else {
                 val textoStatus = if (statusLimpo.contains("aceito")) "Aceito ✅" else "Recusado ❌"
                 val corStatus = if (statusLimpo.contains("aceito")) VerdeBotao else VermelhoErro
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Status: $textoStatus", color = corStatus, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Button(onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Pendente") }, colors = ButtonDefaults.buttonColors(containerColor = AmareloAviso), modifier = Modifier.height(32.dp), shape = RoundedCornerShape(8.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Status: $textoStatus",
+                        color = corStatus,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Button(
+                        onClick = {
+                            BancoDeDados.responderPedidoMotorista(
+                                pedido.idReal,
+                                "Pendente"
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AmareloAviso),
+                        modifier = Modifier.height(32.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                    ) {
                         Text("↩️ Desfazer", fontSize = 12.sp, color = Color.Black)
                     }
                 }
             }
         }
     }
+    // JANELA DO MOTIVO
+    if (mostrarMotivo) {
+        AlertDialog(
+            onDismissRequest = { mostrarMotivo = false },
+            title = { Text("Motivo da recusa") },
+            text = { TextField(value = motivo, onValueChange = { motivo = it }, label = { Text("Ex: Sem vagas") }) },
+            confirmButton = {
+                Button(onClick = {
+                    val statusFinal = if(motivo.isNotEmpty()) "Recusado: $motivo" else "Recusado"
+                    BancoDeDados.responderPedidoMotorista(pedido.idReal, statusFinal)
+                    mostrarMotivo = false
+                }) { Text("Confirmar") }
+            }
+        )
+    }
 }
+
