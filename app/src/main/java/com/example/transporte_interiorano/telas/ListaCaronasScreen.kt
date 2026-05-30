@@ -114,38 +114,30 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
 
             // 2. INFORMAÇÕES DA VIAGEM: Tudo 100% visível
             Text("🎯 Evento: $eventoNome", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp)) // Reduzido de 6 para 4
 
             Text("📍 Origem: $cidadeOrigem", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text("   $endOrigem", fontSize = 12.sp, color = Color.DarkGray)
+            Text(endOrigem, fontSize = 12.sp, color = Color.DarkGray)
 
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(2.dp)) // Mantido apertado
 
             Text("🏁 Destino: $cidadeDestino", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text("   $endDestino", fontSize = 12.sp, color = Color.DarkGray)
+            Text(endDestino, fontSize = 12.sp, color = Color.DarkGray)
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp)) // Reduzido de 12 para 8
 
             // 3. HORÁRIO E VAGAS (Agora em coluna, um embaixo do outro)
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    "⏰ Partida: ${carona.horario}",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-
-                Spacer(modifier = Modifier.height(4.dp)) // Um pequeno espaço entre eles
-
+                Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(
                     "👥 Vagas Livres: $vagasRestantes",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if(vagasRestantes <= 0) VermelhoErro else VerdeBotao
+                    color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao
                 )
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp)) // Reduzido de 16 para 12
+            }
 
             // 4. ÁREA DOS BOTÕES
             val statusLimpo = meuPedido?.status?.trim()?.lowercase() ?: ""
@@ -193,9 +185,15 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
                         onClick = { aoClicarEmSolicitar(carona) },
                         colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                        modifier = Modifier.fillMaxWidth().height(48.dp) // Altura padrão para não cortar
                     ) {
-                        Text("Solicitar Novamente", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            text = "Solicitar Novamente",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 } else {
                     Surface(modifier = Modifier.fillMaxWidth(), color = Color.LightGray.copy(alpha = 0.3f), shape = RoundedCornerShape(8.dp)) {
