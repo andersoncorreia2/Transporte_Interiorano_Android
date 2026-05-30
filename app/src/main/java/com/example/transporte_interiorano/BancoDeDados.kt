@@ -10,7 +10,17 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 // Estruturas de Dados
-data class Carona(val id: Int = 0, val cidadeOrigem: String = "", val origem: String, val cidadeDestino: String = "", val destino: String, val horario: String, val vagas: String, val motorista: String)
+data class Carona(
+    val id: Int = 0,
+    val evento_nome: String = "",
+    val cidade_origem: String = "",
+    val endereco_origem: String = "",
+    val cidade_destino: String = "",
+    val endereco_destino: String = "",
+    val horario: String = "",
+    val vagas: String = "",
+    val motorista: String = ""
+)
 
 data class Usuario(
     val nome: String, val cpf: String, val email: String, val telefone: String,
@@ -41,10 +51,11 @@ object BancoDeDados {
                     novaLista.add(
                         Carona(
                             id = item.getInt("id"),
-                            cidadeOrigem = item.optString("cidade_origem", ""),
-                            origem = item.getString("origem"),
-                            cidadeDestino = item.optString("cidade_destino", ""),
-                            destino = item.getString("destino"),
+                            evento_nome = item.optString("evento_nome", ""),
+                            cidade_origem = item.optString("cidade_origem", ""),
+                            endereco_origem = item.optString("endereco_origem", ""),
+                            cidade_destino = item.optString("cidade_destino", ""),
+                            endereco_destino = item.optString("endereco_destino", ""),
                             horario = item.getString("horario"),
                             vagas = item.getString("vagas"),
                             motorista = item.getString("motorista")
@@ -212,11 +223,18 @@ object BancoDeDados {
                 }
 
                 novaLista.add(
-                    Pedido(
-                        idReal = item.getInt("id"),
-                        caronaId = item.getInt("carona_id"),
-                        passageiro = item.getString("passageiro"),
-                        status = status // O status processado entra aqui
+                    Carona(
+                        id = item.getInt("id"),
+                        evento_nome = item.optString("evento_nome", ""),
+                        cidade_origem = item.optString("cidade_origem", ""),
+                        origem = item.optString("origem", ""),
+                        cidade_destino = item.optString("cidade_destino", ""),
+                        destino = item.getString("destino"),
+                        endereco_origem = item.optString("endereco_origem", ""),
+                        endereco_destino = item.optString("endereco_destino", ""),
+                        horario = item.getString("horario"),
+                        vagas = item.getString("vagas"),
+                        motorista = item.getString("motorista")
                     )
                 )
             }
