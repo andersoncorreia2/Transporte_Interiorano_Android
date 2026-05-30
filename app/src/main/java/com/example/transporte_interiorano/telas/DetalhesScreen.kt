@@ -56,7 +56,7 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text("Origem", fontSize = 12.sp, color = Color.Gray)
-                    Text(caronaInfo.origem, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("${caronaInfo.cidade_origem} - ${caronaInfo.endereco_origem}", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -66,7 +66,7 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text("Destino", fontSize = 12.sp, color = Color.Gray)
-                    Text(caronaInfo.destino, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("${caronaInfo.cidade_destino} - ${caronaInfo.endereco_destino}", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))

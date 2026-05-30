@@ -81,10 +81,11 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
     val vagasRestantes = totalVagas - qtdOcupadas
 
     // Organizando as informações completas para não cortar nada
-    val partes = carona.origem.split(" - ", limit = 2)
-    val eventoNome = if (partes.size > 1) partes[0] else "Evento"
-    val origemReal = if (partes.size > 1) partes[1] else carona.origem
-    val destinoReal = carona.destino
+    val eventoNome = carona.evento_nome
+    val cidadeOrigem = carona.cidade_origem
+    val endOrigem = carona.endereco_origem
+    val cidadeDestino = carona.cidade_destino
+    val endDestino = carona.endereco_destino
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
@@ -114,9 +115,14 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
             // 2. INFORMAÇÕES DA VIAGEM: Tudo 100% visível
             Text("🎯 Evento: $eventoNome", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
             Spacer(modifier = Modifier.height(6.dp))
-            Text("📍 Saída: $origemReal", fontSize = 13.sp, color = Color.DarkGray)
+
+            Text("📍 Origem: $cidadeOrigem", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("   $endOrigem", fontSize = 12.sp, color = Color.DarkGray)
+
             Spacer(modifier = Modifier.height(2.dp))
-            Text("🏁 Destino: $destinoReal", fontSize = 13.sp, color = Color.DarkGray)
+
+            Text("🏁 Destino: $cidadeDestino", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("   $endDestino", fontSize = 12.sp, color = Color.DarkGray)
 
             Spacer(modifier = Modifier.height(12.dp))
 

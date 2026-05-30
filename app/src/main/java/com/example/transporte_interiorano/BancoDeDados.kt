@@ -223,18 +223,11 @@ object BancoDeDados {
                 }
 
                 novaLista.add(
-                    Carona(
-                        id = item.getInt("id"),
-                        evento_nome = item.optString("evento_nome", ""),
-                        cidade_origem = item.optString("cidade_origem", ""),
-                        origem = item.optString("origem", ""),
-                        cidade_destino = item.optString("cidade_destino", ""),
-                        destino = item.getString("destino"),
-                        endereco_origem = item.optString("endereco_origem", ""),
-                        endereco_destino = item.optString("endereco_destino", ""),
-                        horario = item.getString("horario"),
-                        vagas = item.getString("vagas"),
-                        motorista = item.getString("motorista")
+                    Pedido(
+                        idReal = item.getInt("id"),
+                        caronaId = item.getInt("carona_id"),
+                        passageiro = item.getString("passageiro"),
+                        status = item.getString("status")
                     )
                 )
             }
