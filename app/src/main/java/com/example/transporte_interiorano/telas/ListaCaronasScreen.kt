@@ -143,50 +143,95 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
 
             // 4. ÁREA DOS BOTÕES (Largos e destacados)
             if (meuPedido != null) {
-                val statusLimpo = meuPedido.status.trim().lowercase()
+                val statusLimpo = meuPedido?.status?.trim()?.lowercase() ?: ""
                 val ehExpirado = statusLimpo.contains("expirado")
-                val corStatus = when {
-                    statusLimpo.contains("aceito") -> VerdeBotao
-                    statusLimpo.contains("recusado") || statusLimpo.contains("expirado") -> VermelhoErro // <--- Ficará vermelho também
-                    else -> AmareloAviso
-                }
-                val textoComEmoji = when {
-                    statusLimpo.contains("aceito") -> "Status: Aceito ✅"
-                    statusLimpo.contains("recusado") -> "Status: Recusado ❌"
-                    statusLimpo.contains("expirado") -> "Status: Expirado ⏳" // <--- ADICIONE ESTA LINHA
-                    else -> "Status: Pendente ⏳"
-                }
+                val ehRecusado = statusLimpo.contains("recusado")
+                val ehAceito = statusLimpo.contains("aceito")
+                val ehPendente = statusLimpo.contains("pendente")
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = corStatus.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)) {
-                        Text(textoComEmoji, color = corStatus, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
-                    }
+                // Agora o botão aparece se não houver pedido, ou se o pedido anterior expirou/foi recusado
+                val mostrarBotaoSolicitar = (meuPedido == null || ehExpirado || ehRecusado)
 
-                    if (statusLimpo.contains("pendente")) {
-                        OutlinedButton(
-                            onClick = { BancoDeDados.cancelarPedidoPassageiro(meuPedido.idReal) },
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                            modifier = Modifier.height(40.dp)
+                if (meuPedido != null && !ehExpirado && !ehRecusado) {
+                    // Estado ativo: Aceito ou Pendente
+                    val corStatus = if (ehAceito) VerdeBotao else AmareloAviso
+                    val textoComEmoji = if (ehAceito) "Status: Aceito ✅" else "Status: Pendente ⏳"
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = corStatus.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("Cancelar", color = VermelhoErro, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                textoComEmoji,
+                                color = corStatus,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        if (ehPendente) {
+                            OutlinedButton(
+                                onClick = { BancoDeDados.cancelarPedidoPassageiro(meuPedido.idReal) },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                modifier = Modifier.height(40.dp)
+                            ) {
+                                Text(
+                                    "Cancelar",
+                                    color = VermelhoErro,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
-                }
-            } else {
-                if (vagasRestantes > 0) {
-                    // Botão Solicitar ocupando a largura total do cartão, e da cor Azul igual à sua imagem!
-                    Button(
-                        onClick = { aoClicarEmSolicitar(carona) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
-                    ) {
-                        Text("Solicitar", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                } else if (mostrarBotaoSolicitar) {
+                    // Estado finalizado ou novo: Mostra status (se expirado/recusado) e botão Solicitar
+                    if (ehExpirado || ehRecusado) {
+                        Text(
+                            if (ehExpirado) "Status: Expirado ⏳" else "Status: Recusado ❌",
+                            color = VermelhoErro,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
                     }
-                } else {
-                    Surface(modifier = Modifier.fillMaxWidth(), color = Color.LightGray.copy(alpha = 0.3f), shape = RoundedCornerShape(8.dp)) {
-                        Text("Esgotado", color = Color.Gray, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 12.dp), textAlign = TextAlign.Center)
+
+                    if (vagasRestantes > 0) {
+                        Button(
+                            onClick = { aoClicarEmSolicitar(carona) },
+                            colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            Text(
+                                "Solicitar Novamente",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
+                    } else {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color.LightGray.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "Esgotado",
+                                color = Color.Gray,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
