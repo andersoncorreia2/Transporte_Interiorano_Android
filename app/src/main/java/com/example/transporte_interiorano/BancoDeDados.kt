@@ -1,13 +1,12 @@
 package com.example.transporte_interiorano
 
-import android.R
 import androidx.compose.runtime.mutableStateListOf
-import java.net.URL
-import kotlin.concurrent.thread
-import java.net.HttpURLConnection
-import java.io.OutputStreamWriter
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlin.concurrent.thread
 
 // Estruturas de Dados
 data class Carona(
@@ -19,9 +18,10 @@ data class Carona(
     val endereco_destino: String = "",
     val horario: String = "",
     val vagas: String = "",
-    val motorista: String = ""
+    val motorista: String = "",
+    val corridas_realizadas: Int = 0,
+    val passageiros_conduzidos: Int = 0
 )
-
 data class Usuario(
     val nome: String, val cpf: String, val email: String, val telefone: String,
     val veiculo: String = "", val placa: String = "", val senha: String = "", val vagas: String = "0",
@@ -58,7 +58,9 @@ object BancoDeDados {
                             endereco_destino = item.optString("endereco_destino", ""),
                             horario = item.getString("horario"),
                             vagas = item.getString("vagas"),
-                            motorista = item.getString("motorista")
+                            motorista = item.getString("motorista"),
+                            corridas_realizadas = item.optInt("corridas_realizadas", 0),
+                            passageiros_conduzidos = item.optInt("passageiros_conduzidos", 0)
                         )
                     )
                 }
@@ -205,6 +207,32 @@ object BancoDeDados {
         }
     }
 
+    fun finalizarCorridaNuvem(motorista: String, passageiro: String) {
+        thread {
+            try {
+                val url = URL("https://transporte-interiorano-backend.onrender.com/finalizar_corrida")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.doOutput = true
+
+                val json = "{\"motorista\": \"$motorista\", \"passageiro\": \"$passageiro\"}"
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json)
+                escritor.flush()
+
+                // 🆕 ESTAS LINHAS PARA VIGIAR O SERVIDOR:
+                val codigoResposta = conexao.responseCode
+                android.util.Log.d("DEBUG_SERVER", "Código de resposta do servidor: $codigoResposta")
+
+                if (conexao.responseCode == 200) {
+                    buscarSolicitacoesDoServidor()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
     fun buscarSolicitacoesDoServidor() {
         try {
             val resposta = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").readText()
@@ -374,6 +402,24 @@ object BancoDeDados {
                 println("🗑️ ORDEM DE EXCLUSÃO ENVIADA! Servidor respondeu: $codigoResposta")
             } catch (erro: Exception) {
                 println("❌ ERRO AO EXCLUIR CONTA NUVEM: ${erro.message}")
+            }
+        }
+    }
+
+    fun buscarMétricasDoUsuario(nome: String, aoTerminar: (Int, Int) -> Unit) {
+        thread {
+            try {
+                val nomeSeguro = java.net.URLEncoder.encode(nome, "UTF-8")
+                val url = URL("https://transporte-interiorano-backend.onrender.com/usuarios_por_nome/$nomeSeguro")
+                val resposta = url.readText()
+                val json = JSONObject(resposta)
+
+                val corridas = json.getInt("corridas_realizadas")
+                val passageiros = json.getInt("passageiros_conduzidos")
+
+                aoTerminar(corridas, passageiros)
+            } catch (e: Exception) {
+                aoTerminar(0, 0)
             }
         }
     }

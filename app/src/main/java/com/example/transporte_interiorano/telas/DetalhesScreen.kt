@@ -29,9 +29,9 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
                 Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = AzulPrincipal)
             }
             Text(
-                "Detalhes da Carona",
+                "Detalhes das Corridas",
                 color = AzulPrincipal,
-                fontSize = 20.sp,
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -91,15 +91,7 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
                     Text("$vagasRestantes vagas", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            //Texto antigo
-            //Row(verticalAlignment = Alignment.CenterVertically) {
-            //Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray)
-            //Spacer(modifier = Modifier.width(16.dp))
-            //Column {
-            //Text("Vagas disponíveis", fontSize = 12.sp, color = Color.Gray)
-            //Text("${caronaInfo.vagas} vagas", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            //}
-            //}
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -108,6 +100,10 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
                 Column {
                     Text("Motorista", fontSize = 12.sp, color = Color.Gray)
                     Text(caronaInfo.motorista, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+
+                    // 🆕 EXIBIÇÃO DAS MÉTRICAS DE CONFIANÇA
+                    Text("Corridas realizadas: ${caronaInfo.corridas_realizadas}", fontSize = 12.sp, color = Color.DarkGray)
+                    Text("Passageiros conduzidos: ${caronaInfo.passageiros_conduzidos}", fontSize = 12.sp, color = Color.DarkGray)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -154,7 +150,7 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao)
         ) {
-            Text("Confirmar Carona", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Confirmar Carrida", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

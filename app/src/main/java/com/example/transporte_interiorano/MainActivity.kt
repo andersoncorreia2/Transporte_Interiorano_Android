@@ -66,7 +66,19 @@ class MainActivity : ComponentActivity() {
                     var cidadeLogada by remember { mutableStateOf("") }
                     var estadoLogado by remember { mutableStateOf("") }
                     var cepLogado by remember { mutableStateOf("") }
+                    var corridasRealizadas by remember { mutableStateOf(0) }
+                    var passageirosConduzidos by remember { mutableStateOf(0) }
                     // ------------------------------------------
+
+                    // O LaunchedEffect para buscar os dados
+                    LaunchedEffect(telaAtual) {
+                        if (telaAtual == "perfil") {
+                            BancoDeDados.buscarMétricasDoUsuario(nomeLogado) { c, p ->
+                                corridasRealizadas = c
+                                passageirosConduzidos = p
+                            }
+                        }
+                    }
 
                     var caronaSelecionada by remember { mutableStateOf<Carona?>(null) }
 
@@ -229,6 +241,8 @@ class MainActivity : ComponentActivity() {
                             email = emailLogado,
                             veiculo = veiculoLogado,
                             placa = placaLogada,
+                            corridas = corridasRealizadas,       // ⬅️ ADICIONEI ESTA LINHA
+                            passageiros = passageirosConduzidos, // ⬅️ ADICIONEI ESTA LINHA
                             aoClicarSair = {
                                 veiculoLogado = ""
                                 nomeLogado = ""

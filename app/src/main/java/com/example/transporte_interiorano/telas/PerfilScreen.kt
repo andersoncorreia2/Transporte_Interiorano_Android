@@ -29,6 +29,8 @@ fun PerfilScreen(
     email: String,
     veiculo: String,
     placa: String,
+    corridas: Int,
+    passageiros: Int,
     aoClicarSair: () -> Unit,
     aoClicarVoltar: () -> Unit,
     aoClicarExcluirConta: () -> Unit,
@@ -85,7 +87,15 @@ fun PerfilScreen(
             OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Corridas realizadas", fontSize = 12.sp, color = Color.Gray)
-                    Text("0 corridas", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Text("$corridas corridas", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                }
+            }
+
+            // 🆕 ADICIONE ESTE NOVO CARD PARA MOSTRAR OS PASSAGEIROS:
+            OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Passageiros conduzidos", fontSize = 12.sp, color = Color.Gray)
+                    Text("$passageiros passageiros", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                 }
             }
 

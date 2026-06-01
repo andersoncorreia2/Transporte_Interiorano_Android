@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -29,10 +30,12 @@ fun ListaCaronasScreen(nomeLogado: String, aoClicarEmSolicitar: (Carona) -> Unit
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Transporte Interiorano", color = Color.White, fontWeight = FontWeight.Bold) },
+                title = {
+                    Text("Transporte Interiorano", color = Color.White, fontWeight = FontWeight.Bold)
+                },
                 navigationIcon = {
                     IconButton(onClick = aoClicarVoltar) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Voltar", tint = Color.White)
+                        Icon(Icons.Filled.Close, contentDescription = "Fechar", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AzulPrincipal)
@@ -71,134 +74,70 @@ fun ListaCaronasScreen(nomeLogado: String, aoClicarEmSolicitar: (Carona) -> Unit
 @Composable
 fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicitar: (Carona) -> Unit) {
     val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == carona.id }
-    val meuPedido = pedidosDaCarona.find { it.passageiro == nomeLogado }
+    val meuPedido = pedidosDaCarona
+        .filter { it.passageiro.trim().equals(nomeLogado.trim(), ignoreCase = true) }
+        .maxByOrNull { it.idReal }
 
     val totalVagas = carona.vagas.toIntOrNull() ?: 0
-    val qtdOcupadas = pedidosDaCarona.count {
-        val status = it.status.lowercase()
-        status.contains("aceito") || status.contains("pendente")
-    }
+    val qtdOcupadas = pedidosDaCarona.count { it.status.lowercase().contains("aceito") || it.status.lowercase().contains("pendente") }
     val vagasRestantes = totalVagas - qtdOcupadas
 
-    // Organizando as informações completas para não cortar nada
-    val eventoNome = carona.evento_nome
-    val cidadeOrigem = carona.cidade_origem
-    val endOrigem = carona.endereco_origem
-    val cidadeDestino = carona.cidade_destino
-    val endDestino = carona.endereco_destino
-
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-
-            // 1. LINHA SUPERIOR: Foto e Nome
+            // 1. FOTO E NOME
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier.size(50.dp).clip(CircleShape).background(Color.LightGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Person, contentDescription = "Foto", tint = Color.Gray, modifier = Modifier.size(32.dp))
+                Box(modifier = Modifier.size(50.dp).clip(CircleShape).background(Color.LightGray), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Person, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(32.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(carona.motorista, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    Text("⭐ Novo Parceiro", fontSize = 12.sp, color = Color.DarkGray)
+                    Text(carona.motorista, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("⭐ Novo Parceiro", fontSize = 12.sp, color = Color.Gray)
                 }
             }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 2. INFORMAÇÕES (Tudo coladinho com lineHeight)
+            Text("🎯 Evento: ${carona.evento_nome}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal, lineHeight = 14.sp)
+            Text("📍 Origem: ${carona.cidade_origem}", fontSize = 13.sp, fontWeight = FontWeight.Bold, lineHeight = 13.sp)
+            Text("   ${carona.endereco_origem}", fontSize = 12.sp, color = Color.Gray, lineHeight = 12.sp)
+            Text("🏁 Destino: ${carona.cidade_destino}", fontSize = 13.sp, fontWeight = FontWeight.Bold, lineHeight = 13.sp)
+            Text("   ${carona.endereco_destino}", fontSize = 12.sp, color = Color.Gray, lineHeight = 12.sp)
+            Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold, lineHeight = 14.sp)
+            Text("👥 Vagas Livres: $vagasRestantes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao, lineHeight = 14.sp)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. INFORMAÇÕES DA VIAGEM: Tudo 100% visível
-            Text("🎯 Evento: $eventoNome", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
-            Spacer(modifier = Modifier.height(4.dp)) // Reduzido de 6 para 4
+            // 3. LÓGICA DE STATUS E BOTÕES
+            val status = meuPedido?.status?.trim()?.lowercase() ?: ""
 
-            Text("📍 Origem: $cidadeOrigem", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text(endOrigem, fontSize = 12.sp, color = Color.DarkGray)
-
-            Spacer(modifier = Modifier.height(2.dp)) // Mantido apertado
-
-            Text("🏁 Destino: $cidadeDestino", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text(endDestino, fontSize = 12.sp, color = Color.DarkGray)
-
-            Spacer(modifier = Modifier.height(8.dp)) // Reduzido de 12 para 8
-
-            // 3. HORÁRIO E VAGAS (Agora em coluna, um embaixo do outro)
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "👥 Vagas Livres: $vagasRestantes",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao
-                )
-
-                Spacer(modifier = Modifier.height(12.dp)) // Reduzido de 16 para 12
-            }
-
-            // 4. ÁREA DOS BOTÕES
-            val statusLimpo = meuPedido?.status?.trim()?.lowercase() ?: ""
-            val ehExpirado = statusLimpo.contains("expirado")
-            val ehRecusado = statusLimpo.contains("recusado")
-            val ehAceito = statusLimpo.contains("aceito")
-            val ehPendente = statusLimpo.contains("pendente")
-
-// Essa variável decide se o botão aparece
-            val mostrarBotaoSolicitar = (meuPedido == null || ehExpirado || ehRecusado)
-
-// Agora usamos a lógica que criamos:
-            if (meuPedido != null && !ehExpirado && !ehRecusado) {
-                // ESTADO ATIVO: Aceito ou Pendente
-                val corStatus = if (ehAceito) VerdeBotao else AmareloAviso
-                val textoComEmoji = if (ehAceito) "Status: Aceito ✅" else "Status: Pendente ⏳"
-
+            if (meuPedido != null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = corStatus.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)) {
-                        Text(textoComEmoji, color = corStatus, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                    val estaAceito = status.contains("aceito")
+                    Surface(color = (if (estaAceito) VerdeBotao else AmareloAviso).copy(0.2f), shape = RoundedCornerShape(8.dp)) {
+                        Text(if (estaAceito) "Status: Aceito ✅" else "Status: Pendente ⏳",
+                            color = if (estaAceito) VerdeBotao else AmareloAviso,
+                            fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp, 8.dp))
                     }
-
-                    if (ehPendente) {
-                        OutlinedButton(
-                            onClick = { BancoDeDados.cancelarPedidoPassageiro(meuPedido.idReal) },
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                            modifier = Modifier.height(40.dp)
-                        ) {
-                            Text("Cancelar", color = VermelhoErro, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    if (status.contains("pendente")) {
+                        OutlinedButton(onClick = {
+                            BancoDeDados.cancelarPedidoPassageiro(meuPedido.idReal)
+                            BancoDeDados.buscarSolicitacoesDoServidor()
+                        }, modifier = Modifier.height(40.dp)) {
+                            Text("Cancelar", color = VermelhoErro, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-            } else if (mostrarBotaoSolicitar) {
-                // ESTADO FINALIZADO OU NOVO: Mostra status (se expirado/recusado) e botão Solicitar
-                if (ehExpirado || ehRecusado) {
-                    Text(
-                        if (ehExpirado) "Status: Expirado ⏳" else "Status: Recusado ❌",
-                        color = VermelhoErro, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp)
-                    )
+            } else if (vagasRestantes > 0) {
+                Button(onClick = {
+                    aoClicarEmSolicitar(carona)
+                    BancoDeDados.buscarSolicitacoesDoServidor()
+                }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                    Text("Solicitar Vaga", fontWeight = FontWeight.Bold)
                 }
-
-                if (vagasRestantes > 0) {
-                    Button(
-                        onClick = { aoClicarEmSolicitar(carona) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().height(48.dp) // Altura padrão para não cortar
-                    ) {
-                        Text(
-                            text = "Solicitar Novamente",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    Surface(modifier = Modifier.fillMaxWidth(), color = Color.LightGray.copy(alpha = 0.3f), shape = RoundedCornerShape(8.dp)) {
-                        Text("Esgotado", color = Color.Gray, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 12.dp), textAlign = TextAlign.Center)
-                    }
+            } else {
+                Surface(modifier = Modifier.fillMaxWidth(), color = Color.LightGray.copy(alpha = 0.3f), shape = RoundedCornerShape(8.dp)) {
+                    Text("Esgotado", color = Color.Gray, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 12.dp), textAlign = TextAlign.Center)
                 }
             }
         }
