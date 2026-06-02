@@ -27,7 +27,7 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
     var passageirosMotorista by remember { mutableStateOf(caronaInfo?.passageiros_conduzidos ?: 0) }
 
     // 🆕 BUSCA AS MÉTRICAS DO MOTORISTA ASSIM QUE A TELA ABRE
-    LaunchedEffect(caronaInfo?.motorista) {
+    LaunchedEffect(Unit) {
         if (caronaInfo != null) {
             BancoDeDados.buscarMétricasDoUsuario(caronaInfo.motorista) { c, p ->
                 corridasMotorista = c
