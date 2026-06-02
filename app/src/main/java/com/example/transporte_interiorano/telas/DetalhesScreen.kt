@@ -7,7 +7,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.* // 🆕 IMPORTAÇÃO NECESSÁRIA PARA REMEMBER E LAUNCHEDEFFECT
+//import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,35 +22,43 @@ import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarVoltar: () -> Unit) {
+
+    // 🆕 VARIÁVEIS DE ESTADO PARA ATUALIZAR EM TEMPO REAL
+    var corridasMotorista by remember { mutableStateOf(caronaInfo?.corridas_realizadas ?: 0) }
+    var passageirosMotorista by remember { mutableStateOf(caronaInfo?.passageiros_conduzidos ?: 0) }
+
+    // 🆕 BUSCA AS MÉTRICAS DO MOTORISTA ASSIM QUE A TELA ABRE
+    LaunchedEffect(caronaInfo) {
+        if (caronaInfo != null) {
+            // Nota: Se você mudou para buscar por e-mail no BancoDeDados.kt,
+            // você deve passar o e-mail aqui. Se a função ainda aceita nome, mantenha assim:
+            BancoDeDados.buscarMétricasDoUsuario(caronaInfo.motorista) { c, p ->
+                corridasMotorista = c
+                passageirosMotorista = p
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(Color.White).padding(24.dp)) {
 
-        // 🔙 SETA DE VOLTAR CONSERTADA
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = aoClicarVoltar, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = AzulPrincipal)
             }
-            Text(
-                "Detalhes das Corridas",
-                color = AzulPrincipal,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Detalhes das Corridas", color = AzulPrincipal, fontSize = 32.sp, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         if (caronaInfo != null) {
-            // 🆕 INÍCIO DO CÁLCULO DE VAGAS EM TEMPO REAL
-            val pedidosDaCarona =
-                BancoDeDados.todosOsPedidos.filter { it.caronaId == caronaInfo.id }
+            // 🆕 SEU CÁLCULO DE VAGAS ORIGINAL
+            val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == caronaInfo.id }
             val totalVagas = caronaInfo.vagas.toIntOrNull() ?: 0
             val qtdOcupadas = pedidosDaCarona.count {
                 val status = it.status.lowercase()
-                // Só conta vaga ocupada se for "aceito" ou "pendente" (ainda no prazo)
                 status.contains("aceito") || status.contains("pendente")
             }
             val vagasRestantes = totalVagas - qtdOcupadas
-            // 🆕 FIM DO CÁLCULO DE VAGAS EM TEMPO REAL
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.LocationOn, contentDescription = null, tint = AzulPrincipal)
@@ -81,17 +90,14 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            //Texto novo
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray)
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text("Vagas disponíveis", fontSize = 12.sp, color = Color.Gray)
-                    // 🚨 TROQUE A VARIÁVEL AQUI PARA EXIBIR O CÁLCULO:
                     Text("$vagasRestantes vagas", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
-
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -101,9 +107,9 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
                     Text("Motorista", fontSize = 12.sp, color = Color.Gray)
                     Text(caronaInfo.motorista, fontSize = 16.sp, fontWeight = FontWeight.Bold)
 
-                    // 🆕 EXIBIÇÃO DAS MÉTRICAS DE CONFIANÇA
-                    Text("Corridas realizadas: ${caronaInfo.corridas_realizadas}", fontSize = 12.sp, color = Color.DarkGray)
-                    Text("Passageiros conduzidos: ${caronaInfo.passageiros_conduzidos}", fontSize = 12.sp, color = Color.DarkGray)
+                    // 🆕 AGORA USA AS VARIÁVEIS DE ESTADO QUE ATUALIZAM SOZINHAS
+                    Text("Corridas realizadas: $corridasMotorista", fontSize = 12.sp, color = Color.DarkGray)
+                    Text("Passageiros conduzidos: $passageirosMotorista", fontSize = 12.sp, color = Color.DarkGray)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
