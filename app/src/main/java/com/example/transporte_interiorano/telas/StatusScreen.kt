@@ -177,8 +177,11 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                     // Botão Finalizar
                     Button(
                         onClick = {
-                            android.util.Log.d("DEBUG_CLICK", "Botão Finalizar clicado!") // 🆕 LOG DE TESTE
+                            // 1. Finaliza a corrida no servidor
                             BancoDeDados.finalizarCorridaNuvem(caronaMotorista, pedido.passageiro)
+
+                            // 2. Avisa o usuário (Opcional)
+                            android.util.Log.d("DEBUG_CLICK", "Finalização enviada!")
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Blue)
                     ) {

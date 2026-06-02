@@ -70,8 +70,8 @@ class MainActivity : ComponentActivity() {
                     var passageirosConduzidos by remember { mutableStateOf(0) }
                     // ------------------------------------------
 
-                    // O LaunchedEffect para buscar os dados
-                    LaunchedEffect(telaAtual) {
+                    // Assim ele busca os dados quando a tela muda OU quando o nome do usuário muda
+                    LaunchedEffect(telaAtual, nomeLogado) {
                         if (telaAtual == "perfil") {
                             BancoDeDados.buscarMétricasDoUsuario(nomeLogado) { c, p ->
                                 corridasRealizadas = c
