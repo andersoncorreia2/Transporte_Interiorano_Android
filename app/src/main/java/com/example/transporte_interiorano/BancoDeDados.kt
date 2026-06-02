@@ -415,15 +415,19 @@ object BancoDeDados {
         thread {
             try {
                 val nomeSeguro = java.net.URLEncoder.encode(nome, "UTF-8")
+                android.util.Log.d("DEBUG_METRICAS", "Buscando métricas para: $nome")
+
                 val url = URL("https://transporte-interiorano-backend.onrender.com/usuarios_por_nome/$nomeSeguro")
                 val resposta = url.readText()
-                val json = JSONObject(resposta)
+                android.util.Log.d("DEBUG_METRICAS", "Resposta do servidor: $resposta")
 
+                val json = JSONObject(resposta)
                 val corridas = json.getInt("corridas_realizadas")
                 val passageiros = json.getInt("passageiros_conduzidos")
 
                 aoTerminar(corridas, passageiros)
             } catch (e: Exception) {
+                android.util.Log.e("DEBUG_METRICAS", "Erro ao buscar métricas: ${e.message}")
                 aoTerminar(0, 0)
             }
         }
