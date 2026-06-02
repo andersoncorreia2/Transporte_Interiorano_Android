@@ -71,9 +71,9 @@ class MainActivity : ComponentActivity() {
                     // ------------------------------------------
 
                     // Assim ele busca os dados quando a tela muda OU quando o nome do usuário muda
-                    LaunchedEffect(telaAtual, nomeLogado) {
+                    LaunchedEffect(telaAtual, emailLogado) { // Use emailLogado aqui também
                         if (telaAtual == "perfil") {
-                            BancoDeDados.buscarMétricasDoUsuario(nomeLogado) { c, p ->
+                            BancoDeDados.buscarMétricasDoUsuario(emailLogado) { c, p -> // E aqui
                                 corridasRealizadas = c
                                 passageirosConduzidos = p
                             }

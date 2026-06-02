@@ -411,13 +411,15 @@ object BancoDeDados {
         }
     }
 
-    fun buscarMétricasDoUsuario(nome: String, aoTerminar: (Int, Int) -> Unit) {
+    fun buscarMétricasDoUsuario(email: String, aoTerminar: (Int, Int) -> Unit) {
         thread {
             try {
-                val nomeSeguro = java.net.URLEncoder.encode(nome, "UTF-8")
-                android.util.Log.d("DEBUG_METRICAS", "Buscando métricas para: $nome")
+                // Usamos o e-mail que é único e não tem problemas com espaços
+                val emailSeguro = java.net.URLEncoder.encode(email, "UTF-8")
+                android.util.Log.d("DEBUG_METRICAS", "Buscando métricas para o e-mail: $email")
 
-                val url = URL("https://transporte-interiorano-backend.onrender.com/usuarios_por_nome/$nomeSeguro")
+                // A URL agora aponta para a nova rota que criamos no app.py
+                val url = URL("https://transporte-interiorano-backend.onrender.com/usuarios_por_email/$emailSeguro")
                 val resposta = url.readText()
                 android.util.Log.d("DEBUG_METRICAS", "Resposta do servidor: $resposta")
 
