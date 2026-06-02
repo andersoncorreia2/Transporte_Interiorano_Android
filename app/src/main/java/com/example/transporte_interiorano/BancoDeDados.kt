@@ -486,4 +486,17 @@ object BancoDeDados {
             }
         }
     }
+
+    fun listarNomesNoBanco() {
+        thread {
+            try {
+                // Rota que busca todos os usuários para você investigar
+                val url = URL("https://transporte-interiorano-backend.onrender.com/caronas")
+                val resposta = url.readText()
+                android.util.Log.d("DEBUG_BANCO", "Lista de dados brutos: $resposta")
+            } catch (e: Exception) {
+                android.util.Log.e("DEBUG_BANCO", "Erro ao listar: ${e.message}")
+            }
+        }
+    }
 }

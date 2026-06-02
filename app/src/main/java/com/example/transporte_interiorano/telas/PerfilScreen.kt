@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.ui.theme.*
+import androidx.compose.runtime.LaunchedEffect
+import com.example.transporte_interiorano.BancoDeDados
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +38,11 @@ fun PerfilScreen(
     aoClicarExcluirConta: () -> Unit,
     aoClicarEditar: () -> Unit = {}
 ) {
+    // 🆕 INSERÇÃO DO CÓDIGO DE DETETIVE:
+    LaunchedEffect(Unit) {
+        BancoDeDados.listarNomesNoBanco()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
