@@ -216,17 +216,22 @@ object BancoDeDados {
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
 
-                val json = "{\"motorista\": \"$motorista\", \"passageiro\": \"$passageiro\"}"
+                // USANDO O JSONOBJECT PARA EVITAR ERROS DE MONTAGEM
+                val json = JSONObject()
+                json.put("motorista", motorista)
+                json.put("passageiro", passageiro)
+
                 val escritor = OutputStreamWriter(conexao.outputStream)
-                escritor.write(json)
+                escritor.write(json.toString())
                 escritor.flush()
 
-                // 🆕 ESTAS LINHAS PARA VIGIAR O SERVIDOR:
                 val codigoResposta = conexao.responseCode
                 android.util.Log.d("DEBUG_SERVER", "Código de resposta do servidor: $codigoResposta")
 
-                if (conexao.responseCode == 200) {
+                if (codigoResposta == 200) {
                     buscarSolicitacoesDoServidor()
+                } else {
+                    android.util.Log.e("DEBUG_SERVER", "Erro ao finalizar: $codigoResposta")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
