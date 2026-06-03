@@ -210,16 +210,21 @@ class MainActivity : ComponentActivity() {
                             }
                         )
 
-                        "detalhes" -> DetalhesScreen(
-                            caronaInfo = caronaSelecionada,
-                            aoConfirmarCarona = {
-                                if (caronaSelecionada != null) {
-                                    BancoDeDados.fazerSolicitacao(caronaSelecionada!!, nomeLogado)
-                                }
-                                telaAtual = "listaCaronas"
-                            },
-                            aoClicarVoltar = { telaAtual = "listaCaronas" }
-                        )
+                        "detalhes" -> {
+                            // 🔍 LOG PARA RASTREAR SE A CARONA ESTÁ CHEGANDO COM DADOS
+                            Log.d("DEBUG_NAVEGACAO", "Indo para Detalhes com motorista: ${caronaSelecionada?.motorista ?: "NULA"}")
+
+                            DetalhesScreen(
+                                caronaInfo = caronaSelecionada,
+                                aoConfirmarCarona = {
+                                    if (caronaSelecionada != null) {
+                                        BancoDeDados.fazerSolicitacao(caronaSelecionada!!, nomeLogado)
+                                    }
+                                    telaAtual = "listaCaronas"
+                                },
+                                aoClicarVoltar = { telaAtual = "listaCaronas" }
+                            )
+                        }
 
                         "status" -> MinhasSolicitacoesScreen(
                             isMotorista = veiculoLogado.isNotEmpty(),
