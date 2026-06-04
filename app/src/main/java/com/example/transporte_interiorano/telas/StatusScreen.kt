@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,6 +21,7 @@ import com.example.transporte_interiorano.Carona
 import com.example.transporte_interiorano.Pedido
 import com.example.transporte_interiorano.ui.theme.*
 import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowBack
 
 @Composable
 fun MinhasSolicitacoesScreen(
@@ -132,12 +134,25 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
 
     Surface(color = Color(0xFFF9F9F9), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Text("🙋‍♂️ ${pedido.passageiro}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = AzulPrincipal)
+            Text(
+                "🙋‍♂️ ${pedido.passageiro}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = AzulPrincipal
+            )
 
             if (statusLimpo.contains("pendente")) {
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Button(
-                        onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Aceito") },
+                        onClick = {
+                            BancoDeDados.responderPedidoMotorista(
+                                pedido.idReal,
+                                "Aceito"
+                            )
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
                         modifier = Modifier.weight(1f).height(40.dp),
                         contentPadding = PaddingValues(0.dp)
@@ -157,35 +172,55 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                 val textoStatus = if (statusLimpo.contains("aceito")) "Aceito ✅" else "Recusado ❌"
                 val corStatus = if (statusLimpo.contains("aceito")) VerdeBotao else VermelhoErro
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp), // Espaçamento entre botões
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Status: $textoStatus", color = corStatus, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
 
-                    // Botão Desfazer
-                    Button(
-                        onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Pendente") },
-                        colors = ButtonDefaults.buttonColors(containerColor = AmareloAviso),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    // 1. Texto do Status em cima
+                    Text(
+                        "Status: $textoStatus",
+                        color = corStatus,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    // 2. Linha com os botões lado a lado
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("↩️", fontSize = 12.sp, color = Color.Black)
-                    }
+                        // Botão Retornar (o da setinha/desfazer)
+                        IconButton(
+                            onClick = {
+                                BancoDeDados.responderPedidoMotorista(
+                                    pedido.idReal,
+                                    "Pendente"
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(Color.Yellow, RoundedCornerShape(8.dp))
+                                .height(40.dp) // Defini uma altura para ficar alinhado com o outro
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Retornar")
+                        }
 
-                    // Botão Finalizar
-                    Button(
-                        onClick = {
-                            // 1. Finaliza a corrida no servidor
-                            BancoDeDados.finalizarCorridaNuvem(caronaMotorista, pedido.passageiro)
-
-                            // 2. Avisa o usuário (Opcional)
-                            android.util.Log.d("DEBUG_CLICK", "Finalização enviada!")
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Blue)
-                    ) {
-                        Text("🏁 Finalizar", fontSize = 12.sp)
+                        // Botão Finalizar
+                        Button(
+                            onClick = {
+                                BancoDeDados.finalizarCorridaNuvem(
+                                    caronaMotorista,
+                                    pedido.passageiro
+                                )
+                                android.util.Log.d("DEBUG_CLICK", "Finalização enviada!")
+                            },
+                            modifier = Modifier
+                                .weight(2f)
+                                .height(40.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Finalizar", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

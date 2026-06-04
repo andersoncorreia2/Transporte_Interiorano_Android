@@ -22,24 +22,26 @@ import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
-fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarVoltar: () -> Unit) {
+fun DetalhesScreen(
+    caronaInfo: Carona?,
+    corridasIniciais: Int,    // Recebe o valor do Perfil
+    passageirosIniciais: Int, // Recebe o valor do Perfil
+    aoConfirmarCarona: () -> Unit,
+    aoClicarVoltar: () -> Unit
+) {
+    // Inicializa o estado com o que veio do Perfil
+    var corridas by remember { mutableStateOf(corridasIniciais) }
+    var passageiros by remember { mutableStateOf(passageirosIniciais) }
 
-    // 1. Estados que guardam as métricas dinâmicas
-    var corridas by remember { mutableStateOf(0) }
-    var passageiros by remember { mutableStateOf(0) }
-
-    // 2. Código de detetive: busca os valores reais do servidor ao abrir a tela
-    // 🆕 GATILHO FORÇADO COM LOG DE TESTE
-    LaunchedEffect(caronaInfo?.id) {
-        android.util.Log.d("DEBUG_METRICAS", "ID da carona: ${caronaInfo?.id}")
-        if (caronaInfo != null) {
-            BancoDeDados.buscarMétricasDoUsuario(caronaInfo.motorista) { c, p ->
+    // 2. O detetive busca os valores no servidor usando o nome do motorista da carona
+    LaunchedEffect(caronaInfo?.motorista_cpf) {
+        if (caronaInfo != null && caronaInfo.motorista_cpf.isNotEmpty()) {
+            BancoDeDados.buscarMétricasPorCpf(caronaInfo.motorista_cpf) { c, p ->
                 corridas = c
                 passageiros = p
             }
         }
     }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -48,7 +50,6 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
             .verticalScroll(rememberScrollState())
     ) {
 
-        // Cabeçalho
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = aoClicarVoltar, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = AzulPrincipal)
@@ -105,39 +106,29 @@ fun DetalhesScreen(caronaInfo: Carona?, aoConfirmarCarona: () -> Unit, aoClicarV
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- INÍCIO DOS CARDS DE MÉTRICAS IDÊNTICOS AO PERFIL ---
-            OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
-                Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AccountCircle, contentDescription = null, tint = Color.Gray)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
                     Text("Motorista", fontSize = 12.sp, color = Color.Gray)
                     Text(caronaInfo.motorista, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-            }
 
-            OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Corridas realizadas", fontSize = 12.sp, color = Color.Gray)
-                    Text("$corridas corridas", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    // Aqui os valores são exibidos exatamente como solicitado
+                    Text("Corridas realizadas: $corridas", fontSize = 12.sp, color = Color.DarkGray)
+                    Text("Passageiros conduzidos: $passageiros", fontSize = 12.sp, color = Color.DarkGray)
                 }
             }
-
-            OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Passageiros conduzidos", fontSize = 12.sp, color = Color.Gray)
-                    Text("$passageiros passageiros", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                }
-            }
-            // --- FIM DOS CARDS ---
+        }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Seção Valor
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("$", fontSize = 24.sp, color = Color.Gray, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text("Valor", fontSize = 12.sp, color = Color.Gray)
-                    Text("Gratuito", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdeBotao)
-                }
+        // Seção Valor
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("$", fontSize = 24.sp, color = Color.Gray, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text("Valor", fontSize = 12.sp, color = Color.Gray)
+                Text("Gratuito", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdeBotao)
             }
         }
 

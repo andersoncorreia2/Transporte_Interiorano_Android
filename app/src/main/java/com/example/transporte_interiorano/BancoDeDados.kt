@@ -19,8 +19,10 @@ data class Carona(
     val horario: String = "",
     val vagas: String = "",
     val motorista: String = "",
+    val motorista_cpf: String = "",
     val corridas_realizadas: Int = 0,
-    val passageiros_conduzidos: Int = 0
+    val passageiros_conduzidos: Int = 0,
+    val status: String = "Aberta"
 )
 data class Usuario(
     val nome: String, val cpf: String, val email: String, val telefone: String,
@@ -42,6 +44,10 @@ object BancoDeDados {
             try {
                 val enderecoMagico = "https://transporte-interiorano-backend.onrender.com/caronas"
                 val resposta = URL(enderecoMagico).readText()
+
+                // 🆕 ADICIONANDO O RASTREADOR AQUI:
+                android.util.Log.d("DEBUG_JSON", "Resposta do servidor: $resposta")
+
                 val jsonArray = JSONArray(resposta)
 
                 val novaLista = mutableListOf<Carona>()
@@ -53,14 +59,16 @@ object BancoDeDados {
                             id = item.getInt("id"),
                             evento_nome = item.optString("evento_nome", ""),
                             cidade_origem = item.optString("cidade_origem", ""),
-                            endereco_origem = item.optString("endereco_origem", ""),
+                            endereco_origem = item.optString("origem", ""),
                             cidade_destino = item.optString("cidade_destino", ""),
-                            endereco_destino = item.optString("endereco_destino", ""),
+                            endereco_destino = item.optString("destino", ""),
                             horario = item.getString("horario"),
                             vagas = item.getString("vagas"),
                             motorista = item.getString("motorista"),
+                            motorista_cpf = item.optString("motorista_cpf", ""),
                             corridas_realizadas = item.optInt("corridas_realizadas", 0),
-                            passageiros_conduzidos = item.optInt("passageiros_conduzidos", 0)
+                            passageiros_conduzidos = item.optInt("passageiros_conduzidos", 0),
+                            status = item.optString("status", "Aberta")
                         )
                     )
                 }
@@ -82,16 +90,18 @@ object BancoDeDados {
         enderecoDestino: String,
         horario: String,
         vagas: String,
-        motorista: String
+        motorista: String,
+        motoristaCpf: String // 🆕 PARÂMETRO DO CPF AQUI
     ) {
         thread {
             try {
+                // ⚠️ ESTAS LINHAS ESTAVAM FALTANDO NO SEU CÓDIGO!
                 val conexao = URL("https://transporte-interiorano-backend.onrender.com/caronas").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
 
-                // Este JSON agora bate exatamente com as colunas que você criou no app.py
+                // O JSON completo
                 val json = """{
                     "evento_nome": "$nomeEvento",
                     "cidade_origem": "$cidadeOrigem",
@@ -100,9 +110,11 @@ object BancoDeDados {
                     "endereco_destino": "$enderecoDestino",
                     "horario": "$horario",
                     "vagas": "$vagas",
-                    "motorista": "$motorista"
+                    "motorista": "$motorista",
+                    "motorista_cpf": "$motoristaCpf" 
                 }"""
 
+                // Agora o "conexao" existe e o erro vai sumir!
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json)
                 escritor.flush()
@@ -430,6 +442,34 @@ object BancoDeDados {
                 aoTerminar(corridas, passageiros)
             } catch (e: Exception) {
                 android.util.Log.e("DEBUG_METRICAS", "Erro ao buscar métricas: ${e.message}")
+                aoTerminar(0, 0)
+            }
+        }
+    }
+
+    fun buscarMétricasDoUsuarioPorNome(nomeMotorista: String, aoTerminar: (Int, Int) -> Unit) {
+        thread {
+            try {
+                val nomeSeguro = java.net.URLEncoder.encode(nomeMotorista, "UTF-8")
+                // Você precisará adicionar esta rota no seu app.py (veja abaixo)
+                val url = URL("https://transporte-interiorano-backend.onrender.com/usuarios_por_nome/$nomeSeguro")
+                val resposta = url.readText()
+                val json = JSONObject(resposta)
+                aoTerminar(json.getInt("corridas_realizadas"), json.getInt("passageiros_conduzidos"))
+            } catch (e: Exception) {
+                aoTerminar(0, 0)
+            }
+        }
+    }
+
+    fun buscarMétricasPorCpf(cpf: String, aoTerminar: (Int, Int) -> Unit) {
+        thread {
+            try {
+                val url = URL("https://transporte-interiorano-backend.onrender.com/usuarios_por_cpf/$cpf")
+                val resposta = url.readText()
+                val json = JSONObject(resposta)
+                aoTerminar(json.getInt("corridas_realizadas"), json.getInt("passageiros_conduzidos"))
+            } catch (e: Exception) {
                 aoTerminar(0, 0)
             }
         }

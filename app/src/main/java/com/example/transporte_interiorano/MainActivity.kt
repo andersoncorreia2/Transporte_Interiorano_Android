@@ -28,6 +28,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 🔍 TESTE DE PROVA REAL
+        android.util.Log.e("DEBUG_TESTE", "O MainActivity iniciou com sucesso!")
+
         // Inicializa seu radar existente
         BancoDeDados.ligarRadar()
 
@@ -91,6 +94,7 @@ class MainActivity : ComponentActivity() {
                                     senha
                                 ) { usuarioEncontrado, erro ->
                                     if (usuarioEncontrado != null) {
+                                        // 1. Preenche os dados do usuário
                                         nomeLogado = usuarioEncontrado.nome
                                         cpfLogado = usuarioEncontrado.cpf
                                         emailLogado = usuarioEncontrado.email
@@ -107,6 +111,13 @@ class MainActivity : ComponentActivity() {
                                         estadoLogado = usuarioEncontrado.estado
                                         cepLogado = usuarioEncontrado.cep
                                         mensagemLogin = ""
+
+                                        // 🆕 CARREGAMENTO IMEDIATO DAS MÉTRICAS
+                                        BancoDeDados.buscarMétricasDoUsuario(usuarioEncontrado.email) { c, p ->
+                                            corridasRealizadas = c
+                                            passageirosConduzidos = p
+                                        }
+
                                         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                                             if (task.isSuccessful) {
                                                 val token = task.result
@@ -173,24 +184,15 @@ class MainActivity : ComponentActivity() {
                         )
 
                         "criarEvento" -> CriarEventoScreen(
-                            aoPublicarEvento = { nomeEvento, cidadeOrigem, origem, cidadeDestino, destino, horario, vagas ->
-                                val origemComEvento = "$nomeEvento - $origem"
+                            aoPublicarEvento = { nome, cidOri, endOri, cidDes, endDes, hor, vag, cpfMotorista ->
                                 BancoDeDados.enviarCaronaParaServidor(
-                                    nomeEvento = nomeEvento,
-                                    cidadeOrigem = cidadeOrigem,
-                                    enderecoOrigem = origem,
-                                    cidadeDestino = cidadeDestino,
-                                    enderecoDestino = destino,
-                                    horario = horario,
-                                    vagas = vagas,
-                                    motorista = nomeLogado
+                                    nome, cidOri, endOri, cidDes, endDes, hor, vag, nomeLogado, cpfMotorista
                                 )
                                 BancoDeDados.temEventoAtivo = true
                                 telaAtual = "status"
                             },
-                            aoClicarSair = {
-                                telaAtual = "status"
-                            }
+                            aoClicarSair = { telaAtual = "status" },
+                            cpfLogado = cpfLogado // 🆕 PASSE O CPF DA MAINACTIVITY PARA A TELA
                         )
 
                         "listaCaronas" -> ListaCaronasScreen(
@@ -207,22 +209,32 @@ class MainActivity : ComponentActivity() {
                             },
                             aoClicarPerfil = {
                                 telaAtual = "perfil"
+                            },
+                            aoClicarHistorico = { // 👈 Adicione isso
+                                telaAtual = "historico"
                             }
                         )
 
-                        "detalhes" -> {
-                            // 🔍 LOG PARA RASTREAR SE A CARONA ESTÁ CHEGANDO COM DADOS
-                            Log.d("DEBUG_NAVEGACAO", "Indo para Detalhes com motorista: ${caronaSelecionada?.motorista ?: "NULA"}")
+                        "historico" -> HistoricoScreen(
+                            aoClicarVoltar = { telaAtual = "listaCaronas" }
+                        )
 
+                        "detalhes" -> {
                             DetalhesScreen(
                                 caronaInfo = caronaSelecionada,
+                                corridasIniciais = corridasRealizadas,
+                                passageirosIniciais = passageirosConduzidos,
                                 aoConfirmarCarona = {
+                                    // A lógica de confirmar a carona que você já tinha
                                     if (caronaSelecionada != null) {
                                         BancoDeDados.fazerSolicitacao(caronaSelecionada!!, nomeLogado)
                                     }
                                     telaAtual = "listaCaronas"
                                 },
-                                aoClicarVoltar = { telaAtual = "listaCaronas" }
+                                aoClicarVoltar = {
+                                    // A lógica para voltar para a tela anterior
+                                    telaAtual = "listaCaronas"
+                                }
                             )
                         }
 

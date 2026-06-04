@@ -26,7 +26,13 @@ import com.example.transporte_interiorano.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListaCaronasScreen(nomeLogado: String, aoClicarEmSolicitar: (Carona) -> Unit, aoClicarVoltar: () -> Unit, aoClicarPerfil: () -> Unit) {
+fun ListaCaronasScreen(
+    nomeLogado: String,
+    aoClicarEmSolicitar: (Carona) -> Unit,
+    aoClicarVoltar: () -> Unit,
+    aoClicarPerfil: () -> Unit,
+    aoClicarHistorico: () -> Unit // 👈 Adicione esta linha
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -44,7 +50,7 @@ fun ListaCaronasScreen(nomeLogado: String, aoClicarEmSolicitar: (Carona) -> Unit
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F7F7)).padding(paddingValues).padding(16.dp)) {
 
-            Text("Motoristas Disponíveis Hoje", color = Color.DarkGray, fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp, top = 8.dp))
+            Text("Detalhes das Corridas", color = Color.DarkGray, fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp, top = 8.dp))
 
             if (BancoDeDados.caronas.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -66,6 +72,15 @@ fun ListaCaronasScreen(nomeLogado: String, aoClicarEmSolicitar: (Carona) -> Unit
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("Ver Meu Perfil", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+            // 🆕 NOVO BOTÃO DE HISTÓRICO
+            OutlinedButton(
+                onClick = aoClicarHistorico, // 👈 Chame a função aqui
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AzulPrincipal)
+            ) {
+                Text("Ver Histórico de Viagens", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -97,14 +112,27 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
             }
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 2. INFORMAÇÕES (Tudo coladinho com lineHeight)
-            Text("🎯 Evento: ${carona.evento_nome}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal, lineHeight = 14.sp)
-            Text("📍 Origem: ${carona.cidade_origem}", fontSize = 13.sp, fontWeight = FontWeight.Bold, lineHeight = 13.sp)
-            Text("   ${carona.endereco_origem}", fontSize = 12.sp, color = Color.Gray, lineHeight = 12.sp)
-            Text("🏁 Destino: ${carona.cidade_destino}", fontSize = 13.sp, fontWeight = FontWeight.Bold, lineHeight = 13.sp)
-            Text("   ${carona.endereco_destino}", fontSize = 12.sp, color = Color.Gray, lineHeight = 12.sp)
-            Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold, lineHeight = 14.sp)
-            Text("👥 Vagas Livres: $vagasRestantes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao, lineHeight = 14.sp)
+            // 2. INFORMAÇÕES (Tudo dentro da mesma coluna)
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text("🎯 Evento: ${carona.evento_nome}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
+
+                Text("📍 Origem: ${carona.cidade_origem}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                if (carona.endereco_origem.isNotEmpty()) {
+                    Text("   ${carona.endereco_origem}", fontSize = 12.sp, color = Color.Gray)
+                }
+
+                Text("🏁 Destino: ${carona.cidade_destino}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                if (carona.endereco_destino.isNotEmpty()) {
+                    Text("   ${carona.endereco_destino}", fontSize = 12.sp, color = Color.Gray)
+                }
+
+                // Estes campos estavam sumindo porque podiam ter ficado fora da coluna ou o card estava pequeno
+                Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("👥 Vagas Livres: $vagasRestantes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao)
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -112,19 +140,30 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
             val status = meuPedido?.status?.trim()?.lowercase() ?: ""
 
             if (meuPedido != null) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    val estaAceito = status.contains("aceito")
-                    Surface(color = (if (estaAceito) VerdeBotao else AmareloAviso).copy(0.2f), shape = RoundedCornerShape(8.dp)) {
-                        Text(if (estaAceito) "Status: Aceito ✅" else "Status: Pendente ⏳",
-                            color = if (estaAceito) VerdeBotao else AmareloAviso,
-                            fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp, 8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Status:", fontSize = 12.sp, color = Color.Gray)
+                        Text(if (status.contains("aceito")) "Aceito ✅" else "Pendente ⏳",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (status.contains("aceito")) VerdeBotao else AmareloAviso)
                     }
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // 🆕 O SEGREDO ESTÁ AQUI: O botão só aparece se for pendente!
                     if (status.contains("pendente")) {
-                        OutlinedButton(onClick = {
-                            BancoDeDados.cancelarPedidoPassageiro(meuPedido.idReal)
-                            BancoDeDados.buscarSolicitacoesDoServidor()
-                        }, modifier = Modifier.height(40.dp)) {
-                            Text("Cancelar", color = VermelhoErro, fontWeight = FontWeight.Bold)
+                        OutlinedButton(
+                            onClick = {
+                                BancoDeDados.cancelarPedidoPassageiro(meuPedido.idReal)
+                                BancoDeDados.buscarSolicitacoesDoServidor()
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = VermelhoErro)
+                        ) {
+                            Text("Cancelar")
                         }
                     }
                 }
