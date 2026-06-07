@@ -16,13 +16,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.BancoDeDados
+import com.example.transporte_interiorano.Pedido // Certifique-se de importar o Pedido
 import com.example.transporte_interiorano.ui.theme.*
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoricoScreen(aoClicarVoltar: () -> Unit) {
-    // Filtra apenas as caronas com status 'Finalizada' que estão no seu BancoDeDados
-    val historico = BancoDeDados.caronas.filter { it.status == "Finalizada" }
+fun HistoricoScreen(nomePassageiro: String, aoClicarVoltar: () -> Unit) {
+    // 1. Estado para segurar a lista vinda do servidor
+    var historico by remember { mutableStateOf(listOf<Pedido>()) }
+    var carregando by remember { mutableStateOf(true) }
+
+    // 2. Busca os dados apenas uma vez ao abrir a tela
+    LaunchedEffect(Unit) {
+        BancoDeDados.buscarHistoricoPassageiro(nomePassageiro) { lista ->
+            historico = lista
+            carregando = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -35,29 +50,35 @@ fun HistoricoScreen(aoClicarVoltar: () -> Unit) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = AzulPrincipal,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    titleContentColor = Color.White
                 )
             )
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            if (historico.isEmpty()) {
+            if (carregando) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (historico.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Nenhuma viagem finalizada ainda.", color = Color.Gray)
                 }
             } else {
                 LazyColumn {
-                    items(historico) { carona ->
+                    items(historico) { pedido ->
                         Card(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE0E0E0))
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F0F0))
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Evento: ${carona.evento_nome}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                // Acessando as informações que vieram da sua rota de histórico
+                                Text("Evento: ${pedido.evento_nome}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AzulPrincipal)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text("De: ${carona.cidade_origem} para ${carona.cidade_destino}")
-                                Text("Data/Hora: ${carona.horario}", fontSize = 12.sp)
+
+                                Text("De: ${pedido.cidade_origem} para ${pedido.cidade_destino}")
+                                Text("Data/Hora: ${pedido.horario}", fontSize = 12.sp)
+
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text("Status: Finalizada ✅", color = Color(0xFF388E3C), fontWeight = FontWeight.Bold)
                             }

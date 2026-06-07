@@ -216,25 +216,23 @@ class MainActivity : ComponentActivity() {
                         )
 
                         "historico" -> HistoricoScreen(
+                            nomePassageiro = nomeLogado, // O parâmetro que o HistoricoScreen espera
                             aoClicarVoltar = { telaAtual = "listaCaronas" }
                         )
 
                         "detalhes" -> {
                             DetalhesScreen(
                                 caronaInfo = caronaSelecionada,
+                                nomePassageiroLogado = nomeLogado, // 👈 PASSE O NOME AQUI
                                 corridasIniciais = corridasRealizadas,
                                 passageirosIniciais = passageirosConduzidos,
                                 aoConfirmarCarona = {
-                                    // A lógica de confirmar a carona que você já tinha
                                     if (caronaSelecionada != null) {
-                                        BancoDeDados.fazerSolicitacao(caronaSelecionada!!, nomeLogado)
+                                        BancoDeDados.fazerSolicitacao(caronaSelecionada!!, nomeLogado, cpfLogado)
                                     }
                                     telaAtual = "listaCaronas"
                                 },
-                                aoClicarVoltar = {
-                                    // A lógica para voltar para a tela anterior
-                                    telaAtual = "listaCaronas"
-                                }
+                                aoClicarVoltar = { telaAtual = "listaCaronas" }
                             )
                         }
 

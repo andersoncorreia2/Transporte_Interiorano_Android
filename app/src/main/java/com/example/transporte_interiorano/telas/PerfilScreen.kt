@@ -83,7 +83,8 @@ fun PerfilScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Caixas de Informação
+            // Caixa de informação
+            // 1. Membro desde (Todos)
             OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Membro desde", fontSize = 12.sp, color = Color.Gray)
@@ -91,6 +92,7 @@ fun PerfilScreen(
                 }
             }
 
+            // 2. Corridas realizadas (Todos)
             OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Corridas realizadas", fontSize = 12.sp, color = Color.Gray)
@@ -98,14 +100,17 @@ fun PerfilScreen(
                 }
             }
 
-            // 🆕 ADICIONE ESTE NOVO CARD PARA MOSTRAR OS PASSAGEIROS:
-            OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Passageiros conduzidos", fontSize = 12.sp, color = Color.Gray)
-                    Text("$passageiros passageiros", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            // 3. Passageiros conduzidos (APENAS MOTORISTA)
+            if (veiculo.isNotEmpty()) {
+                OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Passageiros conduzidos", fontSize = 12.sp, color = Color.Gray)
+                        Text("$passageiros passageiros", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
                 }
             }
 
+            // 4. Tipo da conta (Todos)
             OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Tipo da conta", fontSize = 12.sp, color = Color.Gray)

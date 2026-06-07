@@ -25,8 +25,17 @@ import androidx.compose.material.icons.filled.ArrowBack
 
 @Composable
 fun MinhasSolicitacoesScreen(
-    isMotorista: Boolean, nomeMotoristaLogado: String, aoClicarPerfil: () -> Unit, aoClicarVoltar: () -> Unit, aoClicarNovoEvento: () -> Unit
+    isMotorista: Boolean,
+    nomeMotoristaLogado: String,
+    aoClicarPerfil: () -> Unit,
+    aoClicarVoltar: () -> Unit,
+    aoClicarNovoEvento: () -> Unit
 ) {
+    // AQUI é o lugar perfeito para o LaunchedEffect
+    LaunchedEffect(Unit) {
+        BancoDeDados.buscarCaronasDoServidor()
+        BancoDeDados.buscarSolicitacoesDoServidor()
+    }
     val minhasCaronas = BancoDeDados.caronas.filter { it.motorista == nomeMotoristaLogado }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White).padding(16.dp)) {
@@ -103,7 +112,8 @@ fun CartaoEventoMotorista(carona: Carona) {
 
             // FILTRO NOVO: O motorista SÓ vê quem ainda não foi recusado/expirado
             val pedidosAtivos = pedidosDaCarona.filter {
-                !it.status.lowercase().contains("recusado") && !it.status.lowercase().contains("expirado")
+                val status = it.status.lowercase()
+                !status.contains("finalizado") && !status.contains("recusado") && !status.contains("expirado")
             }
 
             if (pedidosAtivos.isEmpty()) {
@@ -169,12 +179,22 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                     }
                 }
             } else {
-                val textoStatus = if (statusLimpo.contains("aceito")) "Aceito ✅" else "Recusado ❌"
-                val corStatus = if (statusLimpo.contains("aceito")) VerdeBotao else VermelhoErro
+                // 🆕 Lógica atualizada para reconhecer "Finalizado"
+                val ehAceito = statusLimpo.contains("aceito")
+                val ehFinalizado = statusLimpo.contains("finalizado")
+
+                val textoStatus = when {
+                    ehAceito -> "Aceito ✅"
+                    ehFinalizado -> "Finalizado 🏁"
+                    else -> "Recusado ❌"
+                }
+                val corStatus = when {
+                    ehAceito -> VerdeBotao
+                    ehFinalizado -> Color.Blue
+                    else -> VermelhoErro
+                }
 
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-
-                    // 1. Texto do Status em cima
                     Text(
                         "Status: $textoStatus",
                         color = corStatus,
@@ -183,43 +203,36 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
-                    // 2. Linha com os botões lado a lado
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Botão Retornar (o da setinha/desfazer)
-                        IconButton(
-                            onClick = {
-                                BancoDeDados.responderPedidoMotorista(
-                                    pedido.idReal,
-                                    "Pendente"
-                                )
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(Color.Yellow, RoundedCornerShape(8.dp))
-                                .height(40.dp) // Defini uma altura para ficar alinhado com o outro
-                        ) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Retornar")
-                        }
+                    // Se já estiver Finalizado, escondemos os botões para não permitir mais ações
+                    if (!ehFinalizado) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Botão Retornar (o da setinha)
+                            IconButton(
+                                onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Pendente") },
+                                modifier = Modifier.weight(1f).background(Color.Yellow, RoundedCornerShape(8.dp)).height(40.dp)
+                            ) { Icon(Icons.Default.ArrowBack, contentDescription = "Retornar") }
 
-                        // Botão Finalizar
-                        Button(
-                            onClick = {
-                                BancoDeDados.finalizarCorridaNuvem(
-                                    caronaMotorista,
-                                    pedido.passageiro
-                                )
-                                android.util.Log.d("DEBUG_CLICK", "Finalização enviada!")
-                            },
-                            modifier = Modifier
-                                .weight(2f)
-                                .height(40.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Finalizar", fontWeight = FontWeight.Bold)
+                            Button(
+                                onClick = {
+                                    // Agora você deve passar os novos parâmetros:
+                                    // 1. O ID do pedido
+                                    // 2. O nome do motorista
+                                    // 3. O CPF do passageiro (que está dentro do objeto 'pedido')
+                                    // 4. O ID da carona (que está dentro do objeto 'pedido')
+
+                                    BancoDeDados.finalizarSolicitacaoNuvem(
+                                        solicitacaoId = pedido.idReal,
+                                        motorista = caronaMotorista,
+                                        passageiroCpf = pedido.passageiroCpf, // Certifique-se de que o objeto Pedido tem esse campo
+                                        caronaId = pedido.caronaId
+                                    )
+                                },
+                                modifier = Modifier.weight(2f).height(40.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Finalizar", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

@@ -32,7 +32,17 @@ data class Usuario(
 )
 
 // APENAS UMA DECLARAÇÃO DE PEDIDO
-data class Pedido(val idReal: Int, val caronaId: Int, val passageiro: String, val status: String)
+data class Pedido(
+    val idReal: Int,
+    val caronaId: Int,
+    val passageiro: String,
+    val passageiroCpf: String, // 🟢 ADICIONEI ESTA LINHA
+    val status: String,
+    val evento_nome: String = "",
+    val cidade_origem: String = "",
+    val cidade_destino: String = "",
+    val horario: String = ""
+)
 
 object BancoDeDados {
     var caronas = mutableStateListOf<Carona>()
@@ -129,13 +139,18 @@ object BancoDeDados {
         }
     }
 
-    fun fazerSolicitacao(carona: Carona, nomePassageiro: String) {
+    fun fazerSolicitacao(carona: Carona, nomePassageiro: String, cpfPassageiro: String) { // 🟢 Adicione o CPF aqui
         todosOsPedidos.add(
             Pedido(
                 idReal = 0,
                 caronaId = carona.id,
                 passageiro = nomePassageiro,
-                status = "Pendente"
+                passageiroCpf = cpfPassageiro, // 🟢 Adicionei esta linha
+                status = "Pendente",
+                evento_nome = "",
+                cidade_origem = "",
+                cidade_destino = "",
+                horario = ""
             )
         )
         thread {
@@ -145,7 +160,7 @@ object BancoDeDados {
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
-                val json = """{"carona_id": ${carona.id}, "passageiro": "$nomePassageiro"}"""
+                val json = """{"carona_id": ${carona.id}, "passageiro": "$nomePassageiro", "passageiro_cpf": "$cpfPassageiro"}"""
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json)
                 escritor.flush()
@@ -219,32 +234,32 @@ object BancoDeDados {
         }
     }
 
-    fun finalizarCorridaNuvem(motorista: String, passageiro: String) {
+    fun finalizarSolicitacaoNuvem(solicitacaoId: Int, motorista: String, passageiroCpf: String, caronaId: Int) {
         thread {
             try {
-                val url = URL("https://transporte-interiorano-backend.onrender.com/finalizar_corrida")
+                val url = URL("https://transporte-interiorano-backend.onrender.com/finalizar_solicitacao")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
 
-                // USANDO O JSONOBJECT PARA EVITAR ERROS DE MONTAGEM
+                // O servidor espera um JSON com esses campos
                 val json = JSONObject()
+                json.put("solicitacao_id", solicitacaoId)
                 json.put("motorista", motorista)
-                json.put("passageiro", passageiro)
+                json.put("passageiro_cpf", passageiroCpf)
+                json.put("carona_id", caronaId)
 
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json.toString())
                 escritor.flush()
 
-                val codigoResposta = conexao.responseCode
-                android.util.Log.d("DEBUG_SERVER", "Código de resposta do servidor: $codigoResposta")
-
-                if (codigoResposta == 200) {
+                // O servidor responde 200 para esta rota específica
+                if (conexao.responseCode == 200) {
+                    android.util.Log.d("DEBUG_FINALIZAR", "Solicitação finalizada com sucesso! Atualizando...")
                     buscarSolicitacoesDoServidor()
-                } else {
-                    android.util.Log.e("DEBUG_SERVER", "Erro ao finalizar: $codigoResposta")
                 }
+
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -254,27 +269,28 @@ object BancoDeDados {
         try {
             val resposta = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").readText()
             val jsonArray = JSONArray(resposta)
-
             val novaLista = mutableListOf<Pedido>()
+
             for (i in 0 until jsonArray.length()) {
                 val item = jsonArray.getJSONObject(i)
                 val status = item.getString("status")
 
-                // Lógica de tratamento do status
-                if (status == "Expirado") {
-                    // Aqui você pode adicionar um log para debug ou
-                    // tomar alguma ação específica no app
-                    println("⚠️ Aviso: Pedido ${item.getInt("id")} expirou!")
-                }
-
-                novaLista.add(
-                    Pedido(
-                        idReal = item.getInt("id"),
-                        caronaId = item.getInt("carona_id"),
-                        passageiro = item.getString("passageiro"),
-                        status = item.getString("status")
+                // 🟢 FILTRO DE OURO: Só adicionamos na lista do App o que NÃO estiver finalizado
+                if (!status.equals("Finalizado", ignoreCase = true)) {
+                    novaLista.add(
+                        Pedido(
+                            idReal = item.getInt("id"),
+                            caronaId = item.getInt("carona_id"),
+                            passageiro = item.getString("passageiro"),
+                            passageiroCpf = item.optString("passageiro_cpf", ""), // 🟢 ADICIONEi ESTA LINHA AQUI
+                            status = status,
+                            evento_nome = item.optString("evento_nome", ""),
+                            cidade_origem = item.optString("cidade_origem", ""),
+                            cidade_destino = item.optString("cidade_destino", ""),
+                            horario = item.optString("horario", "")
+                        )
                     )
-                )
+                }
             }
             todosOsPedidos.clear()
             todosOsPedidos.addAll(novaLista)
@@ -471,6 +487,42 @@ object BancoDeDados {
                 aoTerminar(json.getInt("corridas_realizadas"), json.getInt("passageiros_conduzidos"))
             } catch (e: Exception) {
                 aoTerminar(0, 0)
+            }
+        }
+    }
+
+    fun buscarHistoricoPassageiro(nomePassageiro: String, aoReceber: (List<Pedido>) -> Unit) {
+        thread {
+            try {
+                val encoded = java.net.URLEncoder.encode(nomePassageiro, "UTF-8")
+                val resposta = URL("https://transporte-interiorano-backend.onrender.com/historico/$encoded").readText()
+
+                val jsonArray = JSONArray(resposta)
+                val listaHistorico = mutableListOf<Pedido>()
+
+                for (i in 0 until jsonArray.length()) {
+                    val item = jsonArray.getJSONObject(i)
+                    listaHistorico.add(
+                        Pedido(
+                            idReal = item.getInt("id"),
+                            caronaId = item.getInt("carona_id"),
+                            passageiro = item.getString("passageiro"),
+                            passageiroCpf = item.optString("passageiro_cpf", ""), // Adicionei esta linha
+                            status = item.getString("status"),
+                            // AQUI ESTÁ A CORREÇÃO: Preencher os campos novos
+                            evento_nome = item.optString("evento_nome", ""),
+                            cidade_origem = item.optString("cidade_origem", ""),
+                            cidade_destino = item.optString("cidade_destino", ""),
+                            horario = item.optString("horario", "")
+                        )
+                    )
+                }
+
+                // Retorna a lista para a sua tela de Histórico
+                aoReceber(listaHistorico)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                aoReceber(emptyList()) // Retorna lista vazia em caso de erro
             }
         }
     }
