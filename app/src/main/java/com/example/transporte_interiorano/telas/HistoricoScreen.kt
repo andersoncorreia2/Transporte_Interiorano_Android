@@ -26,14 +26,13 @@ import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoricoScreen(nomePassageiro: String, aoClicarVoltar: () -> Unit) {
-    // 1. Estado para segurar a lista vinda do servidor
+fun HistoricoScreen(cpfPassageiro: String, aoClicarVoltar: () -> Unit) { // 🟢 CPF aqui
     var historico by remember { mutableStateOf(listOf<Pedido>()) }
     var carregando by remember { mutableStateOf(true) }
 
-    // 2. Busca os dados apenas uma vez ao abrir a tela
-    LaunchedEffect(Unit) {
-        BancoDeDados.buscarHistoricoPassageiro(nomePassageiro) { lista ->
+    // 2. Busca os dados usando a nova função por CPF
+    LaunchedEffect(cpfPassageiro) { // 🟢 Dispara ao carregar com o CPF
+        BancoDeDados.buscarHistoricoPassageiroPorCpf(cpfPassageiro) { lista ->
             historico = lista
             carregando = false
         }
@@ -72,7 +71,6 @@ fun HistoricoScreen(nomePassageiro: String, aoClicarVoltar: () -> Unit) {
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F0F0))
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                // Acessando as informações que vieram da sua rota de histórico
                                 Text("Evento: ${pedido.evento_nome}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AzulPrincipal)
                                 Spacer(modifier = Modifier.height(4.dp))
 

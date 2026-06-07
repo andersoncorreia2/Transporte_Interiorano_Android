@@ -491,11 +491,13 @@ object BancoDeDados {
         }
     }
 
-    fun buscarHistoricoPassageiro(nomePassageiro: String, aoReceber: (List<Pedido>) -> Unit) {
+    fun buscarHistoricoPassageiroPorCpf(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
         thread {
             try {
-                val encoded = java.net.URLEncoder.encode(nomePassageiro, "UTF-8")
-                val resposta = URL("https://transporte-interiorano-backend.onrender.com/historico/$encoded").readText()
+                // Nota: O CPF é seguro para passar na URL.
+                // O uso de URLEncoder é boa prática mesmo para CPF.
+                val encodedCpf = java.net.URLEncoder.encode(cpf, "UTF-8")
+                val resposta = URL("https://transporte-interiorano-backend.onrender.com/historico_cpf/$encodedCpf").readText()
 
                 val jsonArray = JSONArray(resposta)
                 val listaHistorico = mutableListOf<Pedido>()
@@ -507,9 +509,8 @@ object BancoDeDados {
                             idReal = item.getInt("id"),
                             caronaId = item.getInt("carona_id"),
                             passageiro = item.getString("passageiro"),
-                            passageiroCpf = item.optString("passageiro_cpf", ""), // Adicionei esta linha
+                            passageiroCpf = item.optString("passageiro_cpf", ""),
                             status = item.getString("status"),
-                            // AQUI ESTÁ A CORREÇÃO: Preencher os campos novos
                             evento_nome = item.optString("evento_nome", ""),
                             cidade_origem = item.optString("cidade_origem", ""),
                             cidade_destino = item.optString("cidade_destino", ""),
@@ -517,7 +518,6 @@ object BancoDeDados {
                         )
                     )
                 }
-
                 // Retorna a lista para a sua tela de Histórico
                 aoReceber(listaHistorico)
             } catch (e: Exception) {

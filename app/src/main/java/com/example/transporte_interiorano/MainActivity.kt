@@ -216,7 +216,7 @@ class MainActivity : ComponentActivity() {
                         )
 
                         "historico" -> HistoricoScreen(
-                            nomePassageiro = nomeLogado, // O parâmetro que o HistoricoScreen espera
+                            cpfPassageiro = cpfLogado, // O parâmetro que o HistoricoScreen espera
                             aoClicarVoltar = { telaAtual = "listaCaronas" }
                         )
 
