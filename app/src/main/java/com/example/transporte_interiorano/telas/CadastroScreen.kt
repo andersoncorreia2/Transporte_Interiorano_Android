@@ -327,9 +327,23 @@ fun CadastroScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
-                    onClick = { if (!cpfJaExiste) aoConcluirCadastro(nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep) },
+                    onClick = {
+                        if (!cpfJaExiste) {
+                            // Lógica de limpeza antes de enviar
+                            val veiculoFinal = if (ofertarCarona) veiculo else ""
+                            val placaFinal = if (ofertarCarona) placa.uppercase() else ""
+                            val vagasFinal = if (ofertarCarona) vagas else "0"
+
+                            aoConcluirCadastro(
+                                nome, cpf, telefone, email, senha,
+                                veiculoFinal, placaFinal, vagasFinal,
+                                rua, numero, complemento, bairro, cidade, estado, cep
+                            )
+                        }
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = if (cpfJaExiste) Color.Gray else VerdeBotao),
-                    modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(8.dp)
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("Concluir cadastro", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }

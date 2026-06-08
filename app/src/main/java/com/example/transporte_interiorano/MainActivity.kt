@@ -73,10 +73,9 @@ class MainActivity : ComponentActivity() {
                     var passageirosConduzidos by remember { mutableStateOf(0) }
                     // ------------------------------------------
 
-                    // Assim ele busca os dados quando a tela muda OU quando o nome do usuário muda
-                    LaunchedEffect(telaAtual, emailLogado) { // Use emailLogado aqui também
-                        if (telaAtual == "perfil") {
-                            BancoDeDados.buscarMétricasDoUsuario(emailLogado) { c, p -> // E aqui
+                    LaunchedEffect(telaAtual) {
+                        if (telaAtual == "perfil" && cpfLogado.isNotEmpty()) {
+                            BancoDeDados.buscarMétricasPorCpf(cpfLogado) { c, p ->
                                 corridasRealizadas = c
                                 passageirosConduzidos = p
                             }
@@ -89,10 +88,7 @@ class MainActivity : ComponentActivity() {
                         "login" -> LoginScreen(
                             aoFazerLogin = { email, senha ->
                                 mensagemLogin = "Conectando ao servidor..."
-                                BancoDeDados.fazerLoginNuvem(
-                                    email,
-                                    senha
-                                ) { usuarioEncontrado, erro ->
+                                BancoDeDados.fazerLoginNuvem(email, senha) { usuarioEncontrado, erro ->
                                     if (usuarioEncontrado != null) {
                                         // 1. Preenche os dados do usuário
                                         nomeLogado = usuarioEncontrado.nome
@@ -112,18 +108,17 @@ class MainActivity : ComponentActivity() {
                                         cepLogado = usuarioEncontrado.cep
                                         mensagemLogin = ""
 
-                                        // 🆕 CARREGAMENTO IMEDIATO DAS MÉTRICAS
-                                        BancoDeDados.buscarMétricasDoUsuario(usuarioEncontrado.email) { c, p ->
-                                            corridasRealizadas = c
-                                            passageirosConduzidos = p
+                                        // 2. AQUI ESTÁ O SEGREDO: BUSCAR MÉTRICAS PELO CPF LOGADO
+                                        BancoDeDados.buscarMétricasPorCpf(usuarioEncontrado.cpf) { corridas, pass ->
+                                            corridasRealizadas = corridas
+                                            passageirosConduzidos = pass
                                         }
 
+                                        // 3. Notificação e navegação
                                         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                                            if (task.isSuccessful) {
-                                                val token = task.result
-                                                enviarTokenParaServidor(usuarioEncontrado.email, token)
-                                            }
+                                            if (task.isSuccessful) enviarTokenParaServidor(usuarioEncontrado.email, task.result)
                                         }
+
                                         if (usuarioEncontrado.veiculo.isNotEmpty()) {
                                             telaAtual = "status"
                                         } else {
@@ -186,7 +181,15 @@ class MainActivity : ComponentActivity() {
                         "criarEvento" -> CriarEventoScreen(
                             aoPublicarEvento = { nome, cidOri, endOri, cidDes, endDes, hor, vag, cpfMotorista ->
                                 BancoDeDados.enviarCaronaParaServidor(
-                                    nome, cidOri, endOri, cidDes, endDes, hor, vag, nomeLogado, cpfMotorista
+                                    nome,
+                                    cidOri,
+                                    endOri,
+                                    cidDes,
+                                    endDes,
+                                    hor,
+                                    vag,
+                                    nomeLogado,
+                                    cpfMotorista
                                 )
                                 BancoDeDados.temEventoAtivo = true
                                 telaAtual = "status"
@@ -228,7 +231,11 @@ class MainActivity : ComponentActivity() {
                                 passageirosIniciais = passageirosConduzidos,
                                 aoConfirmarCarona = {
                                     if (caronaSelecionada != null) {
-                                        BancoDeDados.fazerSolicitacao(caronaSelecionada!!, nomeLogado, cpfLogado)
+                                        BancoDeDados.fazerSolicitacao(
+                                            caronaSelecionada!!,
+                                            nomeLogado,
+                                            cpfLogado
+                                        )
                                     }
                                     telaAtual = "listaCaronas"
                                 },
@@ -333,7 +340,8 @@ class MainActivity : ComponentActivity() {
                                     estadoLogado = usuarioAtualizado.estado
                                     cepLogado = usuarioAtualizado.cep
 
-                                    telaAtual = "perfil" // Isso força o App a voltar para a tela de perfil
+                                    telaAtual =
+                                        "perfil" // Isso força o App a voltar para a tela de perfil
                                 },
                                 aoCancelar = { telaAtual = "perfil" }
                             )
@@ -343,6 +351,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
     fun enviarTokenParaServidor(email: String, token: String) {
         thread {
             try {
