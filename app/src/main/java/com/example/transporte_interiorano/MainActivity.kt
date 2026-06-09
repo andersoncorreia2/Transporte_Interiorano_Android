@@ -25,6 +25,13 @@ import java.net.URL
 import kotlin.concurrent.thread
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
+import android.location.LocationManager
+import android.content.Context
+import android.location.LocationListener
+import android.location.Location
+import androidx.core.app.ActivityCompat
+import android.Manifest
+import android.content.pm.PackageManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -250,17 +257,15 @@ class MainActivity : ComponentActivity() {
                         }
 
                         "status" -> {
-                            // 🟢 ESTE É O "DESPERTADOR" DO GPS QUE VAI FICAR AQUI DENTRO
+                            // 🟢 DESPERTADOR DO GPS (AGORA GRATUITO E REAL)
                             if (veiculoLogado.isNotEmpty()) {
                                 LaunchedEffect(Unit) {
                                     while (true) {
-                                        // Aqui estão os valores fixos (vamos mudar para real depois)
-                                        val latAtual = -8.054
-                                        val lonAtual = -34.881
-
-                                        BancoDeDados.atualizarLocalizacaoMotorista(cpfLogado, nomeLogado, latAtual, lonAtual, "Online")
-
-                                        kotlinx.coroutines.delay(30000)
+                                        // Chama a função gratuita para pegar a coordenada real
+                                        pegarLocalizacaoGratuita(this@MainActivity) { lat, lon ->
+                                            BancoDeDados.atualizarLocalizacaoMotorista(cpfLogado, nomeLogado, lat, lon, "Online")
+                                        }
+                                        kotlinx.coroutines.delay(30000) // Espera 30 segundos
                                     }
                                 }
                             }
@@ -275,9 +280,7 @@ class MainActivity : ComponentActivity() {
                                     emailLogado = ""
                                     telaAtual = "login"
                                 },
-                                aoClicarNovoEvento = {
-                                    telaAtual = "criarEvento"
-                                },
+                                aoClicarNovoEvento = { telaAtual = "criarEvento" },
                                 aoClicarHistorico = { telaAtual = "historico" }
                             )
                         }
@@ -373,6 +376,19 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    fun pegarLocalizacaoGratuita(context: Context, aoReceber: (Double, Double) -> Unit) {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000L, 0f, object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    aoReceber(location.latitude, location.longitude)
+                    locationManager.removeUpdates(this) // Desliga após pegar para economizar bateria
+                }
+            })
         }
     }
 
