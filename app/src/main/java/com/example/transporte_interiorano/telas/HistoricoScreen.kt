@@ -26,15 +26,28 @@ import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoricoScreen(cpfPassageiro: String, aoClicarVoltar: () -> Unit) { // 🟢 CPF aqui
+fun HistoricoScreen(
+    cpfUsuario: String,
+    isMotorista: Boolean,
+    aoClicarVoltar: () -> Unit
+) {
     var historico by remember { mutableStateOf(listOf<Pedido>()) }
     var carregando by remember { mutableStateOf(true) }
 
-    // 2. Busca os dados usando a nova função por CPF
-    LaunchedEffect(cpfPassageiro) { // 🟢 Dispara ao carregar com o CPF
-        BancoDeDados.buscarHistoricoPassageiroPorCpf(cpfPassageiro) { lista ->
-            historico = lista
-            carregando = false
+    LaunchedEffect(cpfUsuario, isMotorista) {
+        carregando = true
+        if (isMotorista) {
+            // Busca como MOTORISTA usando o CPF
+            BancoDeDados.buscarHistoricoMotoristaPorCpf(cpfUsuario) { lista ->
+                historico = lista
+                carregando = false
+            }
+        } else {
+            // Busca como PASSAGEIRO usando o CPF
+            BancoDeDados.buscarHistoricoPassageiroPorCpf(cpfUsuario) { lista ->
+                historico = lista
+                carregando = false
+            }
         }
     }
 

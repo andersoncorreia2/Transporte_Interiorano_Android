@@ -213,20 +213,24 @@ class MainActivity : ComponentActivity() {
                             aoClicarPerfil = {
                                 telaAtual = "perfil"
                             },
-                            aoClicarHistorico = { // 👈 Adicione isso
+                            aoClicarHistorico = {
                                 telaAtual = "historico"
                             }
                         )
 
                         "historico" -> HistoricoScreen(
-                            cpfPassageiro = cpfLogado, // O parâmetro que o HistoricoScreen espera
-                            aoClicarVoltar = { telaAtual = "listaCaronas" }
+                            cpfUsuario = cpfLogado,
+                            isMotorista = veiculoLogado.isNotEmpty(), // Passa true se o usuário tiver veículo cadastrado
+                            aoClicarVoltar = {
+                                // Volta para a tela correta dependendo se é motorista ou passageiro
+                                telaAtual = if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                            }
                         )
 
                         "detalhes" -> {
                             DetalhesScreen(
                                 caronaInfo = caronaSelecionada,
-                                nomePassageiroLogado = nomeLogado, // 👈 PASSE O NOME AQUI
+                                nomePassageiroLogado = nomeLogado,
                                 corridasIniciais = corridasRealizadas,
                                 passageirosIniciais = passageirosConduzidos,
                                 aoConfirmarCarona = {

@@ -527,6 +527,37 @@ object BancoDeDados {
         }
     }
 
+    fun buscarHistoricoMotoristaPorCpf(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
+        thread {
+            try {
+                val encodedCpf = java.net.URLEncoder.encode(cpf, "UTF-8")
+                val resposta = URL("https://transporte-interiorano-backend.onrender.com/historico_motorista_cpf/$encodedCpf").readText()
+
+                val jsonArray = JSONArray(resposta)
+                val listaHistorico = mutableListOf<Pedido>()
+
+                for (i in 0 until jsonArray.length()) {
+                    val item = jsonArray.getJSONObject(i)
+                    listaHistorico.add(
+                        Pedido(
+                            idReal = item.getInt("id"),
+                            caronaId = item.getInt("carona_id"),
+                            passageiro = item.getString("passageiro"),
+                            passageiroCpf = item.optString("passageiro_cpf", ""),
+                            status = item.getString("status"),
+                            evento_nome = item.optString("evento_nome", ""),
+                            horario = item.optString("horario", "")
+                        )
+                    )
+                }
+                aoReceber(listaHistorico)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                aoReceber(emptyList())
+            }
+        }
+    }
+
     // INCLUSÃO: Função para atualizar os dados do utilizador na nuvem
     fun atualizarUsuarioNuvem(usuario: Usuario, aoTerminar: (Boolean) -> Unit) {
         thread {
