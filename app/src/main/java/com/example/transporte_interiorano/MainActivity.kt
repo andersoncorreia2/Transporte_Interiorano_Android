@@ -255,7 +255,8 @@ class MainActivity : ComponentActivity() {
                             },
                             aoClicarNovoEvento = {
                                 telaAtual = "criarEvento"
-                            }
+                            },
+                            aoClicarHistorico = { telaAtual = "historico" }
                         )
 
                         "perfil" -> PerfilScreen(

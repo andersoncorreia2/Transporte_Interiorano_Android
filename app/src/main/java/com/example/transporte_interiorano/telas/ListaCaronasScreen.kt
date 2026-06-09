@@ -52,15 +52,33 @@ fun ListaCaronasScreen(
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F7F7)).padding(paddingValues).padding(16.dp)) {
 
-            Text("Detalhes das Corridas", color = Color.DarkGray, fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp, top = 8.dp))
+            Text(
+                "Eventos Disponíveis",
+                color = Color.DarkGray,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 16.dp, top = 8.dp)
+            )
 
-            if (BancoDeDados.caronas.isEmpty()) {
+            // 1. LÓGICA DE ORDENAÇÃO: Quem tem pedido sobe para o topo
+            val caronasOrdenadas = remember(BancoDeDados.caronas, BancoDeDados.todosOsPedidos) {
+                BancoDeDados.caronas.sortedByDescending { carona ->
+                    val temPedido = BancoDeDados.todosOsPedidos.any {
+                        it.caronaId == carona.id &&
+                                it.passageiro.trim().equals(nomeLogado.trim(), ignoreCase = true)
+                    }
+                    if (temPedido) 1 else 0
+                }
+            }
+
+            if (caronasOrdenadas.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text("Nenhum motorista disponível no momento.", color = Color.Gray)
                 }
             } else {
                 LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(BancoDeDados.caronas) { carona ->
+                    // 2. USANDO A LISTA ORDENADA
+                    items(caronasOrdenadas) { carona ->
                         CartaoCaronaDisponivel(carona, nomeLogado, aoClicarEmSolicitar)
                     }
                 }
@@ -75,9 +93,9 @@ fun ListaCaronasScreen(
             ) {
                 Text("Ver Meu Perfil", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
-            // 🆕 NOVO BOTÃO DE HISTÓRICO
+
             OutlinedButton(
-                onClick = aoClicarHistorico, // 👈 Chame a função aqui
+                onClick = aoClicarHistorico,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = AzulPrincipal)

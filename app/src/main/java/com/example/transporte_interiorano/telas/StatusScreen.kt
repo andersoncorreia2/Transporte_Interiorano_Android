@@ -29,7 +29,8 @@ fun MinhasSolicitacoesScreen(
     nomeMotoristaLogado: String,
     aoClicarPerfil: () -> Unit,
     aoClicarVoltar: () -> Unit,
-    aoClicarNovoEvento: () -> Unit
+    aoClicarNovoEvento: () -> Unit,
+    aoClicarHistorico: () -> Unit // 👈 Adicione isso
 ) {
     // AQUI é o lugar perfeito para o LaunchedEffect
     LaunchedEffect(Unit) {
@@ -67,9 +68,25 @@ fun MinhasSolicitacoesScreen(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = aoClicarPerfil, colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal), modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(8.dp)) {
+        Button(
+            onClick = aoClicarPerfil,
+            colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(8.dp)
+        ) {
             Text("Ver Meu Perfil")
+        }
+
+// 🆕 ADICIONEI ESTE BOTÃO AQUI
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = aoClicarHistorico, // 🟢 AQUI VOCÊ CHAMA O PARÂMETRO QUE VOCÊ ADICIONOU
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = AzulPrincipal)
+        ) {
+            Text("Ver Histórico de Viagens", fontWeight = FontWeight.Bold)
         }
     }
 }
