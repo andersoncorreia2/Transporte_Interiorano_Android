@@ -61,4 +61,5 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
 // Ferramenta de Notificações (Mensagens)
     implementation("com.google.firebase:firebase-messaging")
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
 }
