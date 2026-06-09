@@ -23,6 +23,8 @@ import kotlin.concurrent.thread
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -247,21 +249,38 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        "status" -> MinhasSolicitacoesScreen(
-                            isMotorista = veiculoLogado.isNotEmpty(),
-                            nomeMotoristaLogado = nomeLogado,
-                            aoClicarPerfil = { telaAtual = "perfil" },
-                            aoClicarVoltar = {
-                                veiculoLogado = ""
-                                nomeLogado = ""
-                                emailLogado = ""
-                                telaAtual = "login"
-                            },
-                            aoClicarNovoEvento = {
-                                telaAtual = "criarEvento"
-                            },
-                            aoClicarHistorico = { telaAtual = "historico" }
-                        )
+                        "status" -> {
+                            // 🟢 ESTE É O "DESPERTADOR" DO GPS QUE VAI FICAR AQUI DENTRO
+                            if (veiculoLogado.isNotEmpty()) {
+                                LaunchedEffect(Unit) {
+                                    while (true) {
+                                        // Aqui estão os valores fixos (vamos mudar para real depois)
+                                        val latAtual = -8.054
+                                        val lonAtual = -34.881
+
+                                        BancoDeDados.atualizarLocalizacaoMotorista(cpfLogado, nomeLogado, latAtual, lonAtual, "Online")
+
+                                        kotlinx.coroutines.delay(30000)
+                                    }
+                                }
+                            }
+
+                            MinhasSolicitacoesScreen(
+                                isMotorista = veiculoLogado.isNotEmpty(),
+                                nomeMotoristaLogado = nomeLogado,
+                                aoClicarPerfil = { telaAtual = "perfil" },
+                                aoClicarVoltar = {
+                                    veiculoLogado = ""
+                                    nomeLogado = ""
+                                    emailLogado = ""
+                                    telaAtual = "login"
+                                },
+                                aoClicarNovoEvento = {
+                                    telaAtual = "criarEvento"
+                                },
+                                aoClicarHistorico = { telaAtual = "historico" }
+                            )
+                        }
 
                         "perfil" -> PerfilScreen(
                             nome = nomeLogado,

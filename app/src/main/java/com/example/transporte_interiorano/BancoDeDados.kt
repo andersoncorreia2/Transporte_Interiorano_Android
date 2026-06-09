@@ -628,4 +628,27 @@ object BancoDeDados {
             }
         }
     }
+
+    fun atualizarLocalizacaoMotorista(cpf: String, nome: String, lat: Double, lon: Double, status: String) {
+        thread {
+            try {
+                val url = URL("https://transporte-interiorano-backend.onrender.com/atualizar_localizacao")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.doOutput = true
+
+                // O JSON que o servidor espera
+                val json = """{"cpf": "$cpf", "nome": "$nome", "latitude": $lat, "longitude": $lon, "status": "$status"}"""
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json)
+                escritor.flush()
+
+                android.util.Log.d("GPS_DEBUG", "Localização enviada: ${conexao.responseCode}")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 }
