@@ -44,14 +44,6 @@ data class Pedido(
     val horario: String = ""
 )
 
-data class MotoristaOnline(
-    val cpf: String,
-    val nome: String,
-    val latitude: Double,
-    val longitude: Double,
-    val status: String
-)
-
 object BancoDeDados {
     var caronas = mutableStateListOf<Carona>()
     var todosOsPedidos = mutableStateListOf<Pedido>()
@@ -633,57 +625,6 @@ object BancoDeDados {
                 android.util.Log.d("DEBUG_BANCO", "Lista de dados brutos: $resposta")
             } catch (e: Exception) {
                 android.util.Log.e("DEBUG_BANCO", "Erro ao listar: ${e.message}")
-            }
-        }
-    }
-
-    fun atualizarLocalizacaoMotorista(cpf: String, nome: String, lat: Double, lon: Double, status: String) {
-        thread {
-            try {
-                val url = URL("https://transporte-interiorano-backend.onrender.com/atualizar_localizacao")
-                val conexao = url.openConnection() as HttpURLConnection
-                conexao.requestMethod = "POST"
-                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conexao.doOutput = true
-
-                // O JSON que o servidor espera
-                val json = """{"cpf": "$cpf", "nome": "$nome", "latitude": $lat, "longitude": $lon, "status": "$status"}"""
-
-                val escritor = OutputStreamWriter(conexao.outputStream)
-                escritor.write(json)
-                escritor.flush()
-
-                android.util.Log.d("GPS_DEBUG", "Localização enviada: ${conexao.responseCode}")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    fun buscarMotoristasOnline(aoReceber: (List<MotoristaOnline>) -> Unit) {
-        thread {
-            try {
-                val url = URL("https://transporte-interiorano-backend.onrender.com/motoristas_online")
-                val resposta = url.readText()
-                val jsonArray = JSONArray(resposta)
-                val lista = mutableListOf<MotoristaOnline>()
-
-                for (i in 0 until jsonArray.length()) {
-                    val item = jsonArray.getJSONObject(i)
-                    lista.add(
-                        MotoristaOnline(
-                            cpf = item.getString("cpf"),
-                            nome = item.getString("nome"),
-                            latitude = item.getDouble("latitude"),
-                            longitude = item.getDouble("longitude"),
-                            status = item.getString("status_disponibilidade")
-                        )
-                    )
-                }
-                aoReceber(lista)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                aoReceber(emptyList())
             }
         }
     }

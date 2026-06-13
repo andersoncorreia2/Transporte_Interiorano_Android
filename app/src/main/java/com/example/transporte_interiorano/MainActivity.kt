@@ -23,15 +23,6 @@ import kotlin.concurrent.thread
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
-import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.delay
-import android.location.LocationManager
-import android.content.Context
-import android.location.LocationListener
-import android.location.Location
-import androidx.core.app.ActivityCompat
-import android.Manifest
-import android.content.pm.PackageManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -256,34 +247,21 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        "status" -> {
-                            // 🟢 DESPERTADOR DO GPS (AGORA GRATUITO E REAL)
-                            if (veiculoLogado.isNotEmpty()) {
-                                LaunchedEffect(Unit) {
-                                    while (true) {
-                                        // Chama a função gratuita para pegar a coordenada real
-                                        pegarLocalizacaoGratuita(this@MainActivity) { lat, lon ->
-                                            BancoDeDados.atualizarLocalizacaoMotorista(cpfLogado, nomeLogado, lat, lon, "Online")
-                                        }
-                                        kotlinx.coroutines.delay(30000) // Espera 30 segundos
-                                    }
-                                }
-                            }
-
-                            MinhasSolicitacoesScreen(
-                                isMotorista = veiculoLogado.isNotEmpty(),
-                                nomeMotoristaLogado = nomeLogado,
-                                aoClicarPerfil = { telaAtual = "perfil" },
-                                aoClicarVoltar = {
-                                    veiculoLogado = ""
-                                    nomeLogado = ""
-                                    emailLogado = ""
-                                    telaAtual = "login"
-                                },
-                                aoClicarNovoEvento = { telaAtual = "criarEvento" },
-                                aoClicarHistorico = { telaAtual = "historico" }
-                            )
-                        }
+                        "status" -> MinhasSolicitacoesScreen(
+                            isMotorista = veiculoLogado.isNotEmpty(),
+                            nomeMotoristaLogado = nomeLogado,
+                            aoClicarPerfil = { telaAtual = "perfil" },
+                            aoClicarVoltar = {
+                                veiculoLogado = ""
+                                nomeLogado = ""
+                                emailLogado = ""
+                                telaAtual = "login"
+                            },
+                            aoClicarNovoEvento = {
+                                telaAtual = "criarEvento"
+                            },
+                            aoClicarHistorico = { telaAtual = "historico" }
+                        )
 
                         "perfil" -> PerfilScreen(
                             nome = nomeLogado,
@@ -376,19 +354,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-        }
-    }
-
-    fun pegarLocalizacaoGratuita(context: Context, aoReceber: (Double, Double) -> Unit) {
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000L, 0f, object : LocationListener {
-                override fun onLocationChanged(location: Location) {
-                    aoReceber(location.latitude, location.longitude)
-                    locationManager.removeUpdates(this) // Desliga após pegar para economizar bateria
-                }
-            })
         }
     }
 
