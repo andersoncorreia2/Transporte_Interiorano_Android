@@ -162,7 +162,7 @@ fun CadastroScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            Text("Criar Nova Conta", fontSize = 24.sp, color = AzulPrincipal, fontWeight = FontWeight.Bold)
+            Text("CRIAR NOVA CONTA", fontSize = 24.sp, color = AzulPrincipal, fontWeight = FontWeight.Bold)
 
             if (mensagemErro.isNotEmpty()) {
                 val corAlerta = if (mensagemErro.contains("Conectando")) AzulPrincipal else VermelhoErro
@@ -302,7 +302,7 @@ fun CadastroScreen(
             Surface(color = Color.White, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = if (ofertarCarona) "Ofertar Corridas (Ativado)" else "Quero ofertar Corridas", color = if (ofertarCarona) AzulPrincipal else Color.Gray, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(text = if (ofertarCarona) "Ofertar Corridas (Ativado)" else "Quero Ofertar Corridas", color = if (ofertarCarona) AzulPrincipal else Color.Gray, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                         Switch(checked = ofertarCarona, onCheckedChange = { ofertarCarona = it })
                     }
 
@@ -345,7 +345,7 @@ fun CadastroScreen(
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Concluir cadastro", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Concluir Cadastro", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
 
                 OutlinedButton(
