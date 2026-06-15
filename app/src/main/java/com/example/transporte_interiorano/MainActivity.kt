@@ -23,10 +23,22 @@ import kotlin.concurrent.thread
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Solicitar permissão de notificação para Android 13 ou superior
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
 
         // 🔍 TESTE DE PROVA REAL
         android.util.Log.e("DEBUG_TESTE", "O MainActivity iniciou com sucesso!")
@@ -360,7 +372,7 @@ class MainActivity : ComponentActivity() {
     fun enviarTokenParaServidor(email: String, token: String) {
         thread {
             try {
-                val url = URL("http://192.168.1.67:5000/registrar_token")
+                val url = URL("https://transporte-interiorano-backend.onrender.com/registrar_token")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
