@@ -32,12 +32,23 @@ fun MinhasSolicitacoesScreen(
     aoClicarNovoEvento: () -> Unit,
     aoClicarHistorico: () -> Unit // 👈 Adicione isso
 ) {
-    // AQUI é o lugar perfeito para o LaunchedEffect
     LaunchedEffect(Unit) {
         BancoDeDados.buscarCaronasDoServidor()
         BancoDeDados.buscarSolicitacoesDoServidor()
     }
-    val minhasCaronas = BancoDeDados.caronas.filter { it.motorista == nomeMotoristaLogado }
+
+    // 🟢 CORRIGIDO: Lógica reativa de ordenação por relevância de pedidos ativos
+    val minhasCaronasOrdenadas = remember(BancoDeDados.caronas, BancoDeDados.todosOsPedidos) {
+        BancoDeDados.caronas
+            .filter { it.motorista == nomeMotoristaLogado }
+            .sortedByDescending { carona ->
+                // Conta quantos passageiros ativos (Pendentes ou Aceitos) este evento possui no momento
+                BancoDeDados.todosOsPedidos.count { pedido ->
+                    pedido.caronaId == carona.id &&
+                            (pedido.status.lowercase().contains("pendente") || pedido.status.lowercase().contains("aceito"))
+                }
+            }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White).padding(16.dp)) {
 
@@ -57,17 +68,19 @@ fun MinhasSolicitacoesScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (minhasCaronas.isEmpty()) {
+        // 🟢 ATUALIZADO: Agora consome a lista ordenada dinamicamente
+        if (minhasCaronasOrdenadas.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text("Nenhum evento criado por você no momento.", color = Color.Gray)
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
-                items(minhasCaronas) { carona ->
+                items(minhasCaronasOrdenadas) { carona ->
                     CartaoEventoMotorista(carona)
                 }
             }
         }
+
         Button(
             onClick = aoClicarPerfil,
             colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
@@ -77,11 +90,10 @@ fun MinhasSolicitacoesScreen(
             Text("Ver Meu Perfil")
         }
 
-// 🆕 ADICIONEI ESTE BOTÃO AQUI
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
-            onClick = aoClicarHistorico, // 🟢 AQUI VOCÊ CHAMA O PARÂMETRO QUE VOCÊ ADICIONOU
+            onClick = aoClicarHistorico, // AQUI VOCÊ CHAMA O PARÂMETRO QUE VOCÊ ADICIONOU
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = AzulPrincipal)
@@ -100,10 +112,6 @@ fun CartaoEventoMotorista(carona: Carona) {
         status.contains("aceito") || status.contains("pendente")
     }
     val vagasRestantes = totalVagas - qtdOcupadas
-
-    //val partes = carona.origem.split(" - ", limit = 2)
-    //val eventoNome = if (partes.size > 1) partes[0] else "Evento"
-    //val origemReal = if (partes.size > 1) partes[1] else carona.origem
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp).border(1.dp, Color.LightGray, RoundedCornerShape(12.dp)),
@@ -127,7 +135,7 @@ fun CartaoEventoMotorista(carona: Carona) {
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(thickness = 1.dp, color = Color.LightGray)
 
-            // FILTRO NOVO: O motorista SÓ vê quem ainda não foi recusado/expirado
+            // O motorista SÓ vê quem ainda não foi recusado/expirado
             val pedidosAtivos = pedidosDaCarona.filter {
                 val status = it.status.lowercase()
                 !status.contains("finalizado") && !status.contains("recusado") && !status.contains("expirado")
@@ -138,7 +146,6 @@ fun CartaoEventoMotorista(carona: Carona) {
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     pedidosAtivos.forEach { pedido -> LinhaPassageiro(pedido, carona.motorista) }
-                    //pedidosAtivos.forEach { pedido -> LinhaPassageiro(pedido) }
                 }
             }
 
@@ -174,12 +181,7 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = {
-                            BancoDeDados.responderPedidoMotorista(
-                                pedido.idReal,
-                                "Aceito"
-                            )
-                        },
+                        onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Aceito") },
                         colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
                         modifier = Modifier.weight(1f).height(40.dp),
                         contentPadding = PaddingValues(0.dp)
@@ -231,12 +233,6 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
 
                             Button(
                                 onClick = {
-                                    // Agora você deve passar os novos parâmetros:
-                                    // 1. O ID do pedido
-                                    // 2. O nome do motorista
-                                    // 3. O CPF do passageiro (que está dentro do objeto 'pedido')
-                                    // 4. O ID da carona (que está dentro do objeto 'pedido')
-
                                     BancoDeDados.finalizarSolicitacaoNuvem(
                                         solicitacaoId = pedido.idReal,
                                         motorista = caronaMotorista,
