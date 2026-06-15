@@ -49,6 +49,9 @@ object BancoDeDados {
     var todosOsPedidos = mutableStateListOf<Pedido>()
     var temEventoAtivo: Boolean = false
 
+    // Variável global para reter o Token JWT da sessão atual
+    var tokenSessao: String = ""
+
     fun buscarCaronasDoServidor() {
         thread {
             try {
@@ -332,22 +335,28 @@ object BancoDeDados {
                     val res = JSONObject(conexao.inputStream.bufferedReader().readText())
 
                     // ALTERAÇÃO: O aplicativo agora lê e guarda os novos endereços do servidor quando o usuário faz login!
+                    // 🟢 Captura o Token e salva no objeto global
+                    tokenSessao = res.getString("token")
+
+                    // 🟢 Extrai os dados do objeto interno "usuario" enviado pelo backend
+                    val resUsuario = res.getJSONObject("usuario")
+
                     val usuarioLogado = Usuario(
-                        nome = res.getString("nome"),
-                        cpf = res.getString("cpf"),
-                        email = res.getString("email"),
-                        telefone = res.getString("telefone"),
-                        veiculo = res.optString("veiculo", ""),
-                        placa = res.optString("placa", ""),
-                        vagas = res.optString("vagas", ""), // <--- TEM DE SER "vagas" (plural)
+                        nome = resUsuario.getString("nome"),
+                        cpf = resUsuario.getString("cpf"),
+                        email = resUsuario.getString("email"),
+                        telefone = resUsuario.getString("telefone"),
+                        veiculo = resUsuario.optString("veiculo", ""),
+                        placa = resUsuario.optString("placa", ""),
+                        vagas = resUsuario.optString("vagas", ""),
                         senha = senhaRecebida,
-                        rua = res.optString("rua", ""),
-                        numero = res.optString("numero", ""),
-                        complemento = res.optString("complemento", ""),
-                        bairro = res.optString("bairro", ""),
-                        cidade = res.optString("cidade", ""),
-                        estado = res.optString("estado", ""),
-                        cep = res.optString("cep", "")
+                        rua = resUsuario.optString("rua", ""),
+                        numero = resUsuario.optString("numero", ""),
+                        complemento = resUsuario.optString("complemento", ""),
+                        bairro = resUsuario.optString("bairro", ""),
+                        cidade = resUsuario.optString("cidade", ""),
+                        estado = resUsuario.optString("estado", ""),
+                        cep = resUsuario.optString("cep", "")
                     )
 
                     aoTerminar(usuarioLogado, "")
@@ -431,6 +440,10 @@ object BancoDeDados {
                     URL("https://transporte-interiorano-backend.onrender.com/usuarios/$emailSeguroParaInternet")
                 val conexao = enderecoMagico.openConnection() as HttpURLConnection
                 conexao.requestMethod = "DELETE"
+
+                // Anexando assinatura digital da sessão
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+
                 val codigoResposta = conexao.responseCode
                 println("🗑️ ORDEM DE EXCLUSÃO ENVIADA! Servidor respondeu: $codigoResposta")
             } catch (erro: Exception) {
@@ -568,6 +581,10 @@ object BancoDeDados {
                     URL("https://transporte-interiorano-backend.onrender.com/usuarios/$emailSeguro").openConnection() as HttpURLConnection
                 conexao.requestMethod = "PUT"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+
+                // 🟢 ADICIONADO: Anexando assinatura digital da sessão
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+
                 conexao.doOutput = true
 
                 // Dentro da função atualizarUsuarioNuvem no BancoDeDados.kt:

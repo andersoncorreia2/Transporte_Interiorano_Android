@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
                     var veiculoLogado by remember { mutableStateOf("") }
                     var placaLogada by remember { mutableStateOf("") }
                     var vagasLogada by remember { mutableStateOf("") }
-                    var senhaLogada by remember { mutableStateOf("") }
+                    //var senhaLogada by remember { mutableStateOf("") }
                     var ruaLogada by remember { mutableStateOf("") }
                     var numeroLogado by remember { mutableStateOf("") }
                     var complementoLogado by remember { mutableStateOf("") }
@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
                                         veiculoLogado = usuarioEncontrado.veiculo
                                         placaLogada = usuarioEncontrado.placa
                                         vagasLogada = usuarioEncontrado.vagas
-                                        senhaLogada = usuarioEncontrado.senha
+                                        //senhaLogada = usuarioEncontrado.senha
                                         ruaLogada = usuarioEncontrado.rua
                                         numeroLogado = usuarioEncontrado.numero
                                         complementoLogado = usuarioEncontrado.complemento
