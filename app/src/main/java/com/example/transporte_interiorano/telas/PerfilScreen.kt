@@ -2,10 +2,10 @@ package com.example.transporte_interiorano.telas
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState // 🆕 IMPORTAÇÃO ADICIONADA
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll // 🆕 IMPORTAÇÃO ADICIONADA
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
@@ -23,12 +23,17 @@ import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.ui.theme.*
 import androidx.compose.runtime.LaunchedEffect
 import com.example.transporte_interiorano.BancoDeDados
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PerfilScreen(
     nome: String,
     email: String,
+    // 🟢 DEFINE O VALOR PADRÃO AUTOMÁTICO SE NINGUÉM PASSAR NADA:
+    dataCadastro: String = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date()),
     veiculo: String,
     placa: String,
     corridas: Int,
@@ -62,7 +67,7 @@ fun PerfilScreen(
                 .background(Color.White)
                 .padding(paddingValues)
                 .padding(24.dp)
-                .verticalScroll(rememberScrollState()), // 🆕 COMANDO MÁGICO PARA ROLAGEM AQUI!
+                .verticalScroll(rememberScrollState()), // COMANDO MÁGICO PARA ROLAGEM AQUI!
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Avatar Circular
@@ -84,11 +89,12 @@ fun PerfilScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             // Caixa de informação
-            // 1. Membro desde (Todos)
+            // 1. Membro desde (Dinâmico)
             OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.outlinedCardColors(containerColor = Color.White)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Membro desde", fontSize = 12.sp, color = Color.Gray)
-                    Text("Maio de 2026", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    // Exibe a variável dinamicamente
+                    Text(dataCadastro, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                 }
             }
 
@@ -120,7 +126,7 @@ fun PerfilScreen(
 
             Spacer(modifier = Modifier.weight(1f, fill = false)) // Ajuste para o peso não quebrar a rolagem
 
-            // 🆕 NOVO BOTÃO: Editar Perfil
+            // 🆕 BOTÃO: Editar Perfil
             Button(
                 onClick = aoClicarEditar,
                 colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),

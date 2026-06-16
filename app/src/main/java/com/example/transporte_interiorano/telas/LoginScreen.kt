@@ -24,6 +24,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.transporte_interiorano.Usuario
 
 @Composable
 fun LoginScreen(
@@ -110,7 +125,7 @@ fun LoginScreen(
             }
         )
 
-        // 🆕 NOVO BOTÃO: Esqueci minha senha
+        // 🆕 NOVO BOTÃO: Esqueci minha senha (Fluxo Blindado em Duas Etapas com OTP)
         var mostrarDialogSenha by remember { mutableStateOf(false) }
 
         TextButton(
@@ -121,42 +136,159 @@ fun LoginScreen(
         }
 
         if (mostrarDialogSenha) {
-            var email by remember { mutableStateOf("") }
-            var cpf by remember { mutableStateOf("") }
-            var novaSenha by remember { mutableStateOf("") }
+            var emailRecup by remember { mutableStateOf("") }
+            var cpfRecup by remember { mutableStateOf("") }
+            var codigoOtpRecup by remember { mutableStateOf("") }
+            var novaSenhaRecup by remember { mutableStateOf("") }
+            var confirmarSenhaRecup by remember { mutableStateOf("") }
+
+            var emFaseDeValidacaoOtp by remember { mutableStateOf(false) }
+            var mensagemStatusModal by remember { mutableStateOf("") }
+            var statusCorModal by remember { mutableStateOf(AzulPrincipal) }
+            var carregandoModal by remember { mutableStateOf(false) }
 
             AlertDialog(
                 onDismissRequest = { mostrarDialogSenha = false },
-                title = { Text("Recuperar Senha") },
+                title = {
+                    Text(
+                        text = if (!emFaseDeValidacaoOtp) "Recuperar Senha" else "Confirmar Código OTP",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                },
                 text = {
-                    Column {
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            label = { Text("Email") })
-                        OutlinedTextField(
-                            value = cpf,
-                            onValueChange = { novoTexto ->
-                                val soNumeros = novoTexto.filter { it.isDigit() }.take(11)
-                                cpf = soNumeros
-                            },
-                            label = { Text("CPF") },
-                            visualTransformation = CpfVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                        )
-                        OutlinedTextField(
-                            value = novaSenha,
-                            onValueChange = { novaSenha = it },
-                            label = { Text("Nova Senha") })
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (mensagemStatusModal.isNotEmpty()) {
+                            Text(
+                                text = mensagemStatusModal,
+                                color = statusCorModal,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+
+                        if (!emFaseDeValidacaoOtp) {
+                            // --- PASSO 1: Coleta e validação de dados cadastrais ---
+                            OutlinedTextField(
+                                value = emailRecup,
+                                onValueChange = { emailRecup = it; mensagemStatusModal = "" },
+                                label = { Text("Email") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = cpfRecup,
+                                onValueChange = { novoTexto ->
+                                    val soNumeros = novoTexto.filter { it.isDigit() }.take(11)
+                                    cpfRecup = soNumeros
+                                    mensagemStatusModal = ""
+                                },
+                                label = { Text("CPF") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                visualTransformation = CpfVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                        } else {
+                            // --- PASSO 2: Verificação do token OTP e nova credencial com dupla checagem ---
+                            Text(
+                                text = "Insira o código de 6 dígitos enviado para o seu e-mail cadastrado.",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+
+                            OutlinedTextField(
+                                value = codigoOtpRecup,
+                                onValueChange = { codigoOtpRecup = it.filter { char -> char.isDigit() }.take(6) },
+                                label = { Text("Código de Verificação") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                            OutlinedTextField(
+                                value = novaSenhaRecup,
+                                onValueChange = { novaSenhaRecup = it },
+                                label = { Text("Nova Senha") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation()
+                            )
+                            OutlinedTextField(
+                                value = confirmarSenhaRecup,
+                                onValueChange = { confirmarSenhaRecup = it },
+                                label = { Text("Confirmar Nova Senha") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                isError = novaSenhaRecup.isNotEmpty() && confirmarSenhaRecup.isNotEmpty() && novaSenhaRecup != confirmarSenhaRecup,
+                                supportingText = {
+                                    if (novaSenhaRecup.isNotEmpty() && confirmarSenhaRecup.isNotEmpty() && novaSenhaRecup != confirmarSenhaRecup) {
+                                        Text("As senhas não coincidem!", color = VermelhoErro)
+                                    }
+                                }
+                            )
+                        }
                     }
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        BancoDeDados.recuperarSenhaNuvem(email, cpf, novaSenha) { sucesso, msg ->
-                            if (sucesso) mostrarDialogSenha = false
-                        }
-                    }) {
-                        Text("Confirmar")
+                    Button(
+                        onClick = {
+                            if (!emFaseDeValidacaoOtp) {
+                                if (emailRecup.isBlank() || cpfRecup.isBlank()) {
+                                    mensagemStatusModal = "Preencha o Email e o CPF!"
+                                    statusCorModal = VermelhoErro
+                                    return@Button
+                                }
+                                carregandoModal = true
+                                BancoDeDados.solicitarCodigoRecuperacao(emailRecup.trim(), cpfRecup) { sucesso, msg, codigoDebug ->
+                                    carregandoModal = false
+                                    if (sucesso) {
+                                        emFaseDeValidacaoOtp = true
+                                        mensagemStatusModal = msg
+                                        statusCorModal = VerdeBotao
+                                        if (codigoDebug != null) {
+                                            codigoOtpRecup = codigoDebug
+                                        }
+                                    } else {
+                                        mensagemStatusModal = msg
+                                        statusCorModal = VermelhoErro
+                                    }
+                                }
+                            } else {
+                                if (codigoOtpRecup.length < 6 || novaSenhaRecup.isBlank()) {
+                                    mensagemStatusModal = "Preencha o código e a nova senha!"
+                                    statusCorModal = VermelhoErro
+                                    return@Button
+                                }
+                                if (novaSenhaRecup != confirmarSenhaRecup) {
+                                    mensagemStatusModal = "As senhas não coincidem!"
+                                    statusCorModal = VermelhoErro
+                                    return@Button
+                                }
+                                carregandoModal = true
+                                BancoDeDados.redefinirSenhaComCodigo(emailRecup.trim(), codigoOtpRecup, novaSenhaRecup) { sucesso, msg ->
+                                    carregandoModal = false
+                                    if (sucesso) {
+                                        mostrarDialogSenha = false // Fecha o diálogo com sucesso completo
+                                    } else {
+                                        mensagemStatusModal = msg
+                                        statusCorModal = VermelhoErro
+                                    }
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
+                        enabled = !carregandoModal
+                    ) {
+                        Text(if (!emFaseDeValidacaoOtp) "Confirmar" else "Redefinir Senha")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { mostrarDialogSenha = false }) {
+                        Text("Cancelar", color = VermelhoErro, fontWeight = FontWeight.Bold)
                     }
                 }
             )

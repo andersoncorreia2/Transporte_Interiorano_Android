@@ -609,26 +609,57 @@ object BancoDeDados {
             }
         }
     }
-    fun recuperarSenhaNuvem(email: String, cpf: String, novaSenha: String, aoTerminar: (Boolean, String) -> Unit) {
-        thread {
+    fun solicitarCodigoRecuperacao(email: String, cpf: String, aoTerminar: (Boolean, String, String?) -> Unit) {
+        // Remove pontuações do CPF antes de enviar
+        val cpfLimpo = cpf.filter { it.isDigit() }
+        kotlin.concurrent.thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/recuperar_senha").openConnection() as HttpURLConnection
+                val conexao = URL("https://transporte-interiorano-backend.onrender.com/solicitar_codigo").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
 
-                val json = """{"email": "$email", "cpf": "$cpf", "senha": "$novaSenha"}"""
+                val json = """{"email": "$email", "cpf": "$cpfLimpo"}"""
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json)
                 escritor.flush()
 
+                val resposta = conexao.inputStream.bufferedReader().readText()
+                if (conexao.responseCode == 200) {
+                    val jsonObjeto = JSONObject(resposta)
+                    val codigoDebug = jsonObjeto.optString("codigo_debug", null)
+                    aoTerminar(true, "Código enviado para o e-mail cadastrado!", codigoDebug)
+                } else {
+                    aoTerminar(false, "Dados incorretos ou não cadastrados.", null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(false, "Falha na conexão com o servidor.", null)
+            }
+        }
+    }
+
+    fun redefinirSenhaComCodigo(email: String, codigo: String, novaSenha: String, aoTerminar: (Boolean, String) -> Unit) {
+        kotlin.concurrent.thread {
+            try {
+                val conexao = URL("https://transporte-interiorano-backend.onrender.com/validar_e_redefinir_senha").openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.doOutput = true
+
+                val json = """{"email": "$email", "codigo": "$codigo", "senha": "$novaSenha"}"""
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json)
+                escritor.flush()
+
+                val resposta = conexao.inputStream.bufferedReader().readText()
                 if (conexao.responseCode == 200) {
                     aoTerminar(true, "Senha alterada com sucesso!")
                 } else {
-                    aoTerminar(false, "Erro: E-mail ou CPF incorretos.")
+                    val erroMsg = JSONObject(conexao.errorStream.bufferedReader().readText()).optString("erro", "Erro na validação.")
+                    aoTerminar(false, erroMsg)
                 }
             } catch (erro: Exception) {
-                aoTerminar(false, "Falha na conexão.")
+                aoTerminar(false, "Falha ao processar redefinição: ${erro.message}")
             }
         }
     }

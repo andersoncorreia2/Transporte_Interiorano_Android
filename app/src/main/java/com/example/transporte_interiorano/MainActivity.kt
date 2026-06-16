@@ -22,12 +22,15 @@ import com.google.firebase.messaging.FirebaseMessaging
 import kotlin.concurrent.thread
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.concurrent.thread
+//import kotlin.concurrent.thread
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.Date
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,7 +76,6 @@ class MainActivity : ComponentActivity() {
                     var veiculoLogado by remember { mutableStateOf("") }
                     var placaLogada by remember { mutableStateOf("") }
                     var vagasLogada by remember { mutableStateOf("") }
-                    //var senhaLogada by remember { mutableStateOf("") }
                     var ruaLogada by remember { mutableStateOf("") }
                     var numeroLogado by remember { mutableStateOf("") }
                     var complementoLogado by remember { mutableStateOf("") }
@@ -110,7 +112,6 @@ class MainActivity : ComponentActivity() {
                                         veiculoLogado = usuarioEncontrado.veiculo
                                         placaLogada = usuarioEncontrado.placa
                                         vagasLogada = usuarioEncontrado.vagas
-                                        //senhaLogada = usuarioEncontrado.senha
                                         ruaLogada = usuarioEncontrado.rua
                                         numeroLogado = usuarioEncontrado.numero
                                         complementoLogado = usuarioEncontrado.complemento
@@ -275,35 +276,42 @@ class MainActivity : ComponentActivity() {
                             aoClicarHistorico = { telaAtual = "historico" }
                         )
 
-                        "perfil" -> PerfilScreen(
-                            nome = nomeLogado,
-                            email = emailLogado,
-                            veiculo = veiculoLogado,
-                            placa = placaLogada,
-                            corridas = corridasRealizadas,       // ⬅️ ADICIONEI ESTA LINHA
-                            passageiros = passageirosConduzidos, // ⬅️ ADICIONEI ESTA LINHA
-                            aoClicarSair = {
-                                veiculoLogado = ""
-                                nomeLogado = ""
-                                emailLogado = ""
-                                telaAtual = "login"
-                            },
-                            aoClicarVoltar = {
-                                telaAtual =
-                                    if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
-                            },
-                            aoClicarExcluirConta = {
-                                BancoDeDados.excluirUsuario(emailLogado)
-                                veiculoLogado = ""
-                                nomeLogado = ""
-                                emailLogado = ""
-                                telaAtual = "login"
-                            },
-                            // 🆕 O botão agora envia o utilizador para a tela de edição!
-                            aoClicarEditar = {
-                                telaAtual = "editarPerfil"
-                            }
-                        )
+                        "perfil" -> {
+                            // 🟢 CORRIGIDO: Lógica de captura e formatação da data do sistema (DD/MM/AAAA)
+                            val formatador = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+                            val dataFormatada = formatador.format(Date())
+
+                            PerfilScreen(
+                                nome = nomeLogado,
+                                email = emailLogado,
+                                dataCadastro = dataFormatada, // 🟢 Injetando a variável dinâmica calculada acima
+                                veiculo = veiculoLogado,
+                                placa = placaLogada,
+                                corridas = corridasRealizadas,       // ⬅️ ADICIONEI ESTA LINHA
+                                passageiros = passageirosConduzidos, // ⬅️ ADICIONEI ESTA LINHA
+                                aoClicarSair = {
+                                    veiculoLogado = ""
+                                    nomeLogado = ""
+                                    emailLogado = ""
+                                    telaAtual = "login"
+                                },
+                                aoClicarVoltar = {
+                                    telaAtual =
+                                        if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                                },
+                                aoClicarExcluirConta = {
+                                    BancoDeDados.excluirUsuario(emailLogado)
+                                    veiculoLogado = ""
+                                    nomeLogado = ""
+                                    emailLogado = ""
+                                    telaAtual = "login"
+                                },
+                                // 🆕 O botão agora envia o utilizador para a tela de edição!
+                                aoClicarEditar = {
+                                    telaAtual = "editarPerfil"
+                                }
+                            )
+                        }
 
                         "editarPerfil" -> {
                             // Criamos um "Usuário" temporário só com o que temos guardado para a tela abrir
@@ -324,7 +332,8 @@ class MainActivity : ComponentActivity() {
                                 estado = estadoLogado,
                                 cep = cepLogado,
                             )
-
+                        }
+                        "editarPerfil" -> {
                             EditarPerfilScreen(
                                 usuarioAtual = Usuario(
                                     nome = nomeLogado,
