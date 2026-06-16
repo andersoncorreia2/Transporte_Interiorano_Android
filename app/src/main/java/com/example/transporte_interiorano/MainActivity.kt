@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize().safeDrawingPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    var telaAtual by remember { mutableStateOf("login") }
+                    var telaAtual by remember { mutableStateOf("splash") }
                     var erroDeCadastro by remember { mutableStateOf("") }
                     var mensagemLogin by remember { mutableStateOf("") }
 
@@ -99,6 +99,10 @@ class MainActivity : ComponentActivity() {
                     var caronaSelecionada by remember { mutableStateOf<Carona?>(null) }
 
                     when (telaAtual) {
+                        "splash" -> SplashScreen(
+                            onTimeout = { telaAtual = "login" } // Quando der o tempo, muda para o login
+                        )
+
                         "login" -> LoginScreen(
                             aoFazerLogin = { email, senha ->
                                 mensagemLogin = "Conectando ao servidor..."
