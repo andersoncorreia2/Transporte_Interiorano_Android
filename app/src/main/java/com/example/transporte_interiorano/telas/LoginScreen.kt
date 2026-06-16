@@ -249,9 +249,9 @@ fun LoginScreen(
                                         emFaseDeValidacaoOtp = true
                                         mensagemStatusModal = msg
                                         statusCorModal = VerdeBotao
-                                        if (codigoDebug != null) {
-                                            codigoOtpRecup = codigoDebug
-                                        }
+                                        //if (codigoDebug != null) {
+                                            //codigoOtpRecup = codigoDebug
+                                        //}
                                     } else {
                                         mensagemStatusModal = msg
                                         statusCorModal = VermelhoErro
