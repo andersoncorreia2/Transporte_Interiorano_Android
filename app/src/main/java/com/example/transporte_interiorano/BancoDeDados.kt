@@ -623,9 +623,14 @@ object BancoDeDados {
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json)
                 escritor.flush()
+                escritor.close() // 🟢 Garante o fechamento do canal de escrita
 
-                val resposta = conexao.inputStream.bufferedReader().readText()
-                if (conexao.responseCode == 200) {
+                // 🟢 CORREÇÃO: Primeiro pegamos o código de resposta para disparar a rede!
+                val codigoResposta = conexao.responseCode
+
+                if (codigoResposta == 200) {
+                    // 🟢 Só lê o inputStream se a resposta for positiva
+                    val resposta = conexao.inputStream.bufferedReader().readText()
                     val jsonObjeto = JSONObject(resposta)
                     val codigoDebug = jsonObjeto.optString("codigo_debug", null)
                     aoTerminar(true, "Código enviado para o e-mail cadastrado!", codigoDebug)
@@ -633,6 +638,8 @@ object BancoDeDados {
                     aoTerminar(false, "Dados incorretos ou não cadastrados.", null)
                 }
             } catch (erro: Exception) {
+                // Rastreador oficial para o seu Logcat
+                android.util.Log.e("ERRO_RECUPERACAO", "O motivo real da falha foi: ${erro.message}", erro)
                 aoTerminar(false, "Falha na conexão com o servidor.", null)
             }
         }

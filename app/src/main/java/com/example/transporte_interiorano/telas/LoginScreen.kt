@@ -243,16 +243,13 @@ fun LoginScreen(
                                     return@Button
                                 }
                                 carregandoModal = true
-                                BancoDeDados.solicitarCodigoRecuperacao(emailRecup.trim(), cpfRecup) { sucesso, msg, codigoDebug ->
+                                BancoDeDados.solicitarCodigoRecuperacao(emailRecup.trim(), cpfRecup) { sucesso, msg, _ -> // 🟢 Usamos '_' para ignorar o código de debug completamente
                                     carregandoModal = false
                                     if (sucesso) {
                                         emFaseDeValidacaoOtp = true
                                         mensagemStatusModal = msg
                                         statusCorModal = VerdeBotao
-
-                                        if (codigoDebug != null) {
-                                            codigoOtpRecup = codigoDebug  // Deixe ativo apenas durante os testes locais!
-                                        }
+                                        codigoOtpRecup = "" // 🟢 Força o campo a nascer 100% limpo e vazio!
                                     } else {
                                         mensagemStatusModal = msg
                                         statusCorModal = VermelhoErro
@@ -273,7 +270,7 @@ fun LoginScreen(
                                 BancoDeDados.redefinirSenhaComCodigo(emailRecup.trim(), codigoOtpRecup, novaSenhaRecup) { sucesso, msg ->
                                     carregandoModal = false
                                     if (sucesso) {
-                                        mostrarDialogSenha = false // Fecha o diálogo com sucesso completo
+                                        mostrarDialogSenha = false
                                     } else {
                                         mensagemStatusModal = msg
                                         statusCorModal = VermelhoErro
