@@ -28,8 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.BancoDeDados
 import com.example.transporte_interiorano.ui.theme.*
+import kotlinx.coroutines.delay
 
-// --- MÁSCARAS ---
+// 🟢 AS MÁSCARAS QUE ESTAVAM FALTANDO FORAM REINSERIDAS AQUI:
 class CepVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val trimmed = if (text.text.length >= 8) text.text.substring(0..7) else text.text
@@ -108,7 +109,7 @@ class PlacaVisualTransformation : VisualTransformation {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CadastroScreen(
-    aoConcluirCadastro: (String, String, String, String, String, String, String, String, String, String, String, String, String, String, String) -> Unit,
+    aoConcluirCadastro: (String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String) -> Unit,
     aoClicarFechar: () -> Unit,
     mensagemErro: String = ""
 ) {
@@ -117,6 +118,8 @@ fun CadastroScreen(
     var telefone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var senha by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+
     var veiculo by remember { mutableStateOf("") }
     var placa by remember { mutableStateOf("") }
     var vagas by remember { mutableStateOf("") }
@@ -133,11 +136,30 @@ fun CadastroScreen(
     var senhaVisivel by remember { mutableStateOf(false) }
     var cpfJaExiste by remember { mutableStateOf(false) }
 
-    // Lista de estados para o dropdown
+    var usuarioDisponivel by remember { mutableStateOf(true) }
+    val sugestoesNomes = remember { mutableStateListOf<String>() }
     var ufExpandido by remember { mutableStateOf(false) }
+
     val estadosBrasil = listOf("AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO")
 
-    val focusManager = LocalFocusManager.current
+    // Motor de sugestão de nomes automática
+    LaunchedEffect(nome) {
+        val nomeTratado = nome.trim()
+        if (nomeTratado.contains(" ")) {
+            val partes = nomeTratado.split("\\s+".toRegex())
+            if (partes.size >= 2) {
+                val combinacaoBase = "${partes.first().lowercase()}.${partes.last().lowercase()}"
+                username = combinacaoBase
+                BancoDeDados.verificarDisponibilidadeUsuario(combinacaoBase) { livre, lista ->
+                    usuarioDisponivel = livre
+                    sugestoesNomes.clear()
+                    if (!livre) {
+                        sugestoesNomes.addAll(lista)
+                    }
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -157,16 +179,14 @@ fun CadastroScreen(
                 .fillMaxSize()
                 .background(Color(0xFFF7F7F7))
                 .padding(paddingValues)
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .padding(horizontal = 24.dp, vertical = 12.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-
             Text("CRIAR NOVA CONTA", fontSize = 24.sp, color = AzulPrincipal, fontWeight = FontWeight.Bold)
 
             if (mensagemErro.isNotEmpty()) {
-                val corAlerta = if (mensagemErro.contains("Conectando")) AzulPrincipal else VermelhoErro
-                Text(mensagemErro, color = corAlerta, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(mensagemErro, color = VermelhoErro, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
 
             Text("DADOS PESSOAIS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
@@ -185,7 +205,7 @@ fun CadastroScreen(
                     else if (soNumeros.length == 11) BancoDeDados.verificarCpfExistente(soNumeros) { existe -> cpfJaExiste = existe }
                 },
                 label = { Text("CPF") }, modifier = Modifier.fillMaxWidth(), isError = cpfJaExiste,
-                supportingText = { if (cpfJaExiste) Text("⚠️ Este CPF já está cadastrado no sistema!", color = VermelhoErro, fontWeight = FontWeight.Bold) },
+                supportingText = { if (cpfJaExiste) Text("⚠️ Este CPF já está cadastrado!", color = VermelhoErro, fontWeight = FontWeight.Bold) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                 visualTransformation = CpfVisualTransformation()
             )
@@ -196,98 +216,111 @@ fun CadastroScreen(
                 visualTransformation = TelefoneVisualTransformation()
             )
 
-            Text("ENDEREÇO", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
+            Text("ENDEREÇO", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
 
-            // 1ª Linha: Rua e Nº
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = rua, onValueChange = { rua = it }, label = { Text("Rua/Avenida") }, modifier = Modifier.weight(2f),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                )
-                OutlinedTextField(
-                    value = numero, onValueChange = { numero = it }, label = { Text("Nº") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
-                )
+                OutlinedTextField(value = rua, onValueChange = { rua = it }, label = { Text("Rua/Avenida") }, modifier = Modifier.weight(2f), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
+                OutlinedTextField(value = numero, onValueChange = { numero = it }, label = { Text("Nº") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next))
             }
 
-            // 2ª Linha: Complemento e Bairro
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = complemento, onValueChange = { complemento = it },
-                    label = { Text("Compl. (Opcional)") }, // Abreviado!
-                    modifier = Modifier.weight(1f),
-                    singleLine = true, // Impede que o texto pule linha
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                )
-                OutlinedTextField(
-                    value = bairro, onValueChange = { bairro = it },
-                    label = { Text("Bairro") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                )
+                OutlinedTextField(value = complemento, onValueChange = { complemento = it }, label = { Text("Compl. (Opcional)") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
+                OutlinedTextField(value = bairro, onValueChange = { bairro = it }, label = { Text("Bairro") }, modifier = Modifier.weight(1f), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
             }
 
-            // 3ª Linha: Cidade e UF (Dropdown)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = cidade, onValueChange = { cidade = it },
-                    label = { Text("Cidade") },
-                    // Diminuímos um pouco o peso da cidade para dar mais espaço para o UF respirar
-                    modifier = Modifier.weight(1.3f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(value = cidade, onValueChange = { cidade = it }, label = { Text("Cidade") }, modifier = Modifier.weight(1.3f), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
 
                 ExposedDropdownMenuBox(
                     expanded = ufExpandido,
                     onExpandedChange = { ufExpandido = !ufExpandido },
-                    modifier = Modifier.weight(1f) // Mais espaço para a seta caber do lado do texto
+                    modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
-                        value = estado,
-                        onValueChange = {},
-                        readOnly = true,
-                        singleLine = true, // 🚨 O COMANDO MÁGICO QUE IMPEDE O TEXTO DE FICAR VERTICAL!
-                        label = { Text("UF") },
+                        value = estado, onValueChange = {}, readOnly = true, singleLine = true, label = { Text("UF") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ufExpandido) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
-                    ExposedDropdownMenu(
-                        expanded = ufExpandido,
-                        onDismissRequest = { ufExpandido = false }
-                    ) {
+                    ExposedDropdownMenu(expanded = ufExpandido, onDismissRequest = { ufExpandido = false }) {
                         estadosBrasil.forEach { uf ->
-                            DropdownMenuItem(
-                                text = { Text(uf) },
+                            DropdownMenuItem(text = { Text(uf) }, onClick = { estado = uf; ufExpandido = false })
+                        }
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = cep, onValueChange = { cep = it.filter { char -> char.isDigit() }.take(8) }, label = { Text("CEP") }, modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next), visualTransformation = CepVisualTransformation()
+            )
+
+            Text("DADOS DA CONTA", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+
+            OutlinedTextField(
+                value = username,
+                onValueChange = { novoUser ->
+                    username = novoUser.filter { !it.isWhitespace() }.lowercase()
+                    BancoDeDados.verificarDisponibilidadeUsuario(username) { livre, lista ->
+                        usuarioDisponivel = livre
+                        sugestoesNomes.clear()
+                        if (!livre) {
+                            sugestoesNomes.addAll(lista)
+                        }
+                    }
+                },
+                label = { Text("Nome de Usuário (Para Login)") },
+                modifier = Modifier.fillMaxWidth(),
+                isError = !usuarioDisponivel,
+                supportingText = { if (!usuarioDisponivel) Text("❌ Nome ocupado! Escolha uma sugestão livre:", color = VermelhoErro, fontWeight = FontWeight.Bold) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+            )
+
+            // 🟢 SUBSTITUA O BLOCO DE EXIBIÇÃO DE SUGESTÕES ANTIGO POR ESTE BLINDADO:
+            if (!usuarioDisponivel && sugestoesNomes.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Nome ocupado! Sugestões livres (deslize para o lado):",
+                        color = VermelhoErro,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    // 🚀 A MÁGICA ESTÁ AQUI: LazyRow permite rolagem horizontal infinita sem esmagar o texto!
+                    androidx.compose.foundation.lazy.LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(end = 16.dp)
+                    ) {
+                        items(sugestoesNomes.size) { index ->
+                            val sugestao = sugestoesNomes[index]
+                            SuggestionChip(
                                 onClick = {
-                                    estado = uf
-                                    ufExpandido = false
-                                }
+                                    username = sugestao
+                                    usuarioDisponivel = true
+                                    sugestoesNomes.clear()
+                                },
+                                label = {
+                                    Text(
+                                        text = sugestao,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AzulPrincipal,
+                                        maxLines = 1 // 🚫 IMPEDE A QUEBRA DE LINHA VERTICAL DE QUALQUER CARACTERE!
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp)
                             )
                         }
                     }
                 }
             }
 
-            // 4ª Linha: CEP com máscara
-            OutlinedTextField(
-                value = cep, onValueChange = { cep = it.filter { char -> char.isDigit() }.take(8) }, label = { Text("CEP") }, modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                visualTransformation = CepVisualTransformation()
-            )
-
-            Text("DADOS DA CONTA", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
-
-            OutlinedTextField(
-                value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
-            )
+            OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next))
 
             OutlinedTextField(
                 value = senha, onValueChange = { senha = it }, label = { Text("Senha") }, modifier = Modifier.fillMaxWidth(),
@@ -295,76 +328,59 @@ fun CadastroScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 trailingIcon = {
                     val image = if (senhaVisivel) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                    IconButton(onClick = { senhaVisivel = !senhaVisivel }) { Icon(imageVector = image, contentDescription = "Mostrar") }
+                    IconButton(onClick = { senhaVisivel = !senhaVisivel }) { Icon(imageVector = image, contentDescription = null) }
                 }
             )
 
             Surface(color = Color.White, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = if (ofertarCarona) "Ofertar Corridas (Ativado)" else "Quero Ofertar Corridas", color = if (ofertarCarona) AzulPrincipal else Color.Gray, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(text = if (ofertarCarona) "Ofertar Corridas (Ativado)" else "Ofertar Corridas (Desativado)", color = if (ofertarCarona) AzulPrincipal else Color.Gray, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                         Switch(checked = ofertarCarona, onCheckedChange = { ofertarCarona = it })
                     }
 
                     if (ofertarCarona) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(value = veiculo, onValueChange = { veiculo = it }, label = { Text("Modelo do Veículo") }, modifier = Modifier.fillMaxWidth())
-                        Spacer(modifier = Modifier.height(8.dp))
-
+                        Spacer(modifier = Modifier.height(4.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // Placa ficou com weight 1.5f para ser mais larga!
-                            OutlinedTextField(
-                                value = placa, onValueChange = { placa = it.uppercase().take(7) }, label = { Text("Placa") }, modifier = Modifier.weight(1.5f),
-                                visualTransformation = PlacaVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                            )
+                            OutlinedTextField(value = placa, onValueChange = { placa = it.uppercase().take(7) }, label = { Text("Placa") }, modifier = Modifier.weight(1.5f), visualTransformation = PlacaVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
                             OutlinedTextField(value = vagas, onValueChange = { vagas = it }, label = { Text("Vagas") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
                     onClick = {
-                        if (!cpfJaExiste) {
-                            // Lógica de limpeza antes de enviar
+                        if (!cpfJaExiste && usuarioDisponivel && username.isNotBlank()) {
                             val veiculoFinal = if (ofertarCarona) veiculo else ""
                             val placaFinal = if (ofertarCarona) placa.uppercase() else ""
                             val vagasFinal = if (ofertarCarona) vagas else "0"
 
-                            aoConcluirCadastro(
-                                nome, cpf, telefone, email, senha,
-                                veiculoFinal, placaFinal, vagasFinal,
-                                rua, numero, complemento, bairro, cidade, estado, cep
-                            )
+                            aoConcluirCadastro(nome, cpf, telefone, email, senha, veiculoFinal, placaFinal, vagasFinal, rua, numero, complemento, bairro, cidade, estado, cep, username)
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (cpfJaExiste) Color.Gray else VerdeBotao),
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Concluir Cadastro", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
+                    colors = ButtonDefaults.buttonColors(containerColor = if (cpfJaExiste || !usuarioDisponivel) Color.Gray else VerdeBotao),
+                    modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(8.dp)
+                ) { Text("Concluir Cadastro", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
 
                 OutlinedButton(
                     onClick = {
-                        nome = ""; cpf = ""; telefone = ""; email = ""; senha = ""; veiculo = ""; placa = ""; vagas = "";
+                        nome = ""; cpf = ""; telefone = ""; email = ""; senha = ""; username = ""; veiculo = ""; placa = ""; vagas = "";
                         rua = ""; numero = ""; complemento = ""; bairro = ""; cidade = ""; estado = ""; cep = "";
-                        ofertarCarona = false; cpfJaExiste = false; senhaVisivel = false
+                        ofertarCarona = false; cpfJaExiste = false; senhaVisivel = false; usuarioDisponivel = true;
+                        sugestoesNomes.clear()
                     },
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
-                ) {
-                    Text("Limpar Todos os Campos", color = Color.DarkGray)
-                }
+                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                ) { Text("Limpar Todos os Campos", color = Color.DarkGray) }
 
-                TextButton(onClick = aoClicarFechar, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                    Text("Fechar Cadastro", color = VermelhoErro)
-                }
+                TextButton(onClick = aoClicarFechar, modifier = Modifier.fillMaxWidth().height(44.dp)) { Text("Fechar Cadastro", color = VermelhoErro) }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

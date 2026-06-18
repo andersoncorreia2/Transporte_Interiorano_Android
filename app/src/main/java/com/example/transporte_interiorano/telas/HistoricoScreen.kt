@@ -16,7 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.BancoDeDados
-import com.example.transporte_interiorano.Pedido // Certifique-se de importar o Pedido
+import com.example.transporte_interiorano.Pedido
 import com.example.transporte_interiorano.ui.theme.*
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -37,13 +37,13 @@ fun HistoricoScreen(
     LaunchedEffect(cpfUsuario, isMotorista) {
         carregando = true
         if (isMotorista) {
-            // Busca como MOTORISTA usando o CPF
+            // 🟢 Alinhado com a assinatura exata mapeada no BancoDeDados.kt
             BancoDeDados.buscarHistoricoMotoristaPorCpf(cpfUsuario) { lista ->
                 historico = lista
                 carregando = false
             }
         } else {
-            // Busca como PASSAGEIRO usando o CPF
+            // 🟢 Alinhado com a assinatura exata mapeada no BancoDeDados.kt
             BancoDeDados.buscarHistoricoPassageiroPorCpf(cpfUsuario) { lista ->
                 historico = lista
                 carregando = false
@@ -54,15 +54,14 @@ fun HistoricoScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Histórico de Viagens", fontWeight = FontWeight.Bold) },
+                title = { Text("Histórico de Viagens", fontWeight = FontWeight.Bold, color = Color.White) },
                 navigationIcon = {
                     IconButton(onClick = aoClicarVoltar) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Voltar")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Voltar", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AzulPrincipal,
-                    titleContentColor = Color.White
+                    containerColor = AzulPrincipal
                 )
             )
         }

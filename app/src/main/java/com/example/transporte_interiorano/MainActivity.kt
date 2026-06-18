@@ -3,9 +3,6 @@ package com.example.transporte_interiorano
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-//import androidx.compose.foundation.layout.Box
-//import androidx.compose.foundation.layout.fillMaxSize
-//import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -22,7 +19,6 @@ import com.google.firebase.messaging.FirebaseMessaging
 import kotlin.concurrent.thread
 import java.net.HttpURLConnection
 import java.net.URL
-//import kotlin.concurrent.thread
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -68,7 +64,7 @@ class MainActivity : ComponentActivity() {
                     var erroDeCadastro by remember { mutableStateOf("") }
                     var mensagemLogin by remember { mutableStateOf("") }
 
-                    // --- VARIÁVEIS DE ESTADO QUE FALTAVAM ---
+                    // --- VARIÁVEIS DE ESTADO DO USUÁRIO ---
                     var nomeLogado by remember { mutableStateOf("") }
                     var cpfLogado by remember { mutableStateOf("") }
                     var emailLogado by remember { mutableStateOf("") }
@@ -83,6 +79,8 @@ class MainActivity : ComponentActivity() {
                     var cidadeLogada by remember { mutableStateOf("") }
                     var estadoLogado by remember { mutableStateOf("") }
                     var cepLogado by remember { mutableStateOf("") }
+                    var usuarioLogado by remember { mutableStateOf("") } // 🟢 NOVO ESTADO DA MAIN SESSÃO
+
                     var corridasRealizadas by remember { mutableStateOf(0) }
                     var passageirosConduzidos by remember { mutableStateOf(0) }
                     // ------------------------------------------
@@ -100,13 +98,13 @@ class MainActivity : ComponentActivity() {
 
                     when (telaAtual) {
                         "splash" -> SplashScreen(
-                            onTimeout = { telaAtual = "login" } // Quando der o tempo, muda para o login
+                            onTimeout = { telaAtual = "login" }
                         )
 
                         "login" -> LoginScreen(
-                            aoFazerLogin = { email, senha ->
+                            aoFazerLogin = { usernameInput, senha -> // 🟢 AGORA RECEBE USERNAME
                                 mensagemLogin = "Conectando ao servidor..."
-                                BancoDeDados.fazerLoginNuvem(email, senha) { usuarioEncontrado, erro ->
+                                BancoDeDados.fazerLoginNuvem(usernameInput, senha) { usuarioEncontrado, erro ->
                                     if (usuarioEncontrado != null) {
                                         // 1. Preenche os dados do usuário
                                         nomeLogado = usuarioEncontrado.nome
@@ -123,9 +121,10 @@ class MainActivity : ComponentActivity() {
                                         cidadeLogada = usuarioEncontrado.cidade
                                         estadoLogado = usuarioEncontrado.estado
                                         cepLogado = usuarioEncontrado.cep
+                                        usuarioLogado = usuarioEncontrado.usuario // 🟢 SALVA O USERNAME NA MEMÓRIA
                                         mensagemLogin = ""
 
-                                        // 2. AQUI ESTÁ O SEGREDO: BUSCAR MÉTRICAS PELO CPF LOGADO
+                                        // 2. BUSCAR MÉTRICAS PELO CPF LOGADO
                                         BancoDeDados.buscarMétricasPorCpf(usuarioEncontrado.cpf) { corridas, pass ->
                                             corridasRealizadas = corridas
                                             passageirosConduzidos = pass
@@ -156,28 +155,13 @@ class MainActivity : ComponentActivity() {
                         )
 
                         "cadastro" -> CadastroScreen(
-                            aoConcluirCadastro = { nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep ->
-                                if (nome.isBlank() || cpf.isBlank() || telefone.isBlank() || email.isBlank() || senha.isBlank() || rua.isBlank() || numero.isBlank() || bairro.isBlank() || cidade.isBlank() || estado.isBlank() || cep.isBlank()) {
-                                    erroDeCadastro =
-                                        "Preencha todos os campos obrigatórios, incluindo o endereço!"
+                            aoConcluirCadastro = { nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, city, estado, cep, username -> // 🟢 COM USERNAME
+                                if (nome.isBlank() || cpf.isBlank() || telefone.isBlank() || email.isBlank() || senha.isBlank() || rua.isBlank() || numero.isBlank() || bairro.isBlank() || city.isBlank() || estado.isBlank() || cep.isBlank() || username.isBlank()) {
+                                    erroDeCadastro = "Preencha todos os campos obrigatórios, incluindo o endereço e usuário!"
                                 } else {
                                     erroDeCadastro = "Conectando ao servidor..."
                                     BancoDeDados.cadastrarUsuarioNuvem(
-                                        nome,
-                                        cpf,
-                                        telefone,
-                                        email,
-                                        senha,
-                                        veiculo,
-                                        placa,
-                                        vagas,
-                                        rua,
-                                        numero,
-                                        complemento,
-                                        bairro,
-                                        cidade,
-                                        estado,
-                                        cep
+                                        nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, city, estado, cep, username
                                     ) { sucesso, mensagem ->
                                         if (sucesso) {
                                             erroDeCadastro = ""
@@ -197,22 +181,12 @@ class MainActivity : ComponentActivity() {
 
                         "criarEvento" -> CriarEventoScreen(
                             aoPublicarEvento = { nome, cidOri, endOri, cidDes, endDes, hor, vag, cpfMotorista ->
-                                BancoDeDados.enviarCaronaParaServidor(
-                                    nome,
-                                    cidOri,
-                                    endOri,
-                                    cidDes,
-                                    endDes,
-                                    hor,
-                                    vag,
-                                    nomeLogado,
-                                    cpfMotorista
-                                )
+                                BancoDeDados.enviarCaronaParaServidor(nome, cidOri, endOri, cidDes, endDes, hor, vag, nomeLogado, cpfMotorista)
                                 BancoDeDados.temEventoAtivo = true
                                 telaAtual = "status"
                             },
                             aoClicarSair = { telaAtual = "status" },
-                            cpfLogado = cpfLogado // 🆕 PASSE O CPF DA MAINACTIVITY PARA A TELA
+                            cpfLogado = cpfLogado
                         )
 
                         "listaCaronas" -> ListaCaronasScreen(
@@ -227,42 +201,31 @@ class MainActivity : ComponentActivity() {
                                 emailLogado = ""
                                 telaAtual = "login"
                             },
-                            aoClicarPerfil = {
-                                telaAtual = "perfil"
-                            },
-                            aoClicarHistorico = {
-                                telaAtual = "historico"
-                            }
+                            aoClicarPerfil = { telaAtual = "perfil" },
+                            aoClicarHistorico = { telaAtual = "historico" }
                         )
 
                         "historico" -> HistoricoScreen(
                             cpfUsuario = cpfLogado,
-                            isMotorista = veiculoLogado.isNotEmpty(), // Passa true se o usuário tiver veículo cadastrado
+                            isMotorista = veiculoLogado.isNotEmpty(),
                             aoClicarVoltar = {
-                                // Volta para a tela correta dependendo se é motorista ou passageiro
                                 telaAtual = if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
                             }
                         )
 
-                        "detalhes" -> {
-                            DetalhesScreen(
-                                caronaInfo = caronaSelecionada,
-                                nomePassageiroLogado = nomeLogado,
-                                corridasIniciais = corridasRealizadas,
-                                passageirosIniciais = passageirosConduzidos,
-                                aoConfirmarCarona = {
-                                    if (caronaSelecionada != null) {
-                                        BancoDeDados.fazerSolicitacao(
-                                            caronaSelecionada!!,
-                                            nomeLogado,
-                                            cpfLogado
-                                        )
-                                    }
-                                    telaAtual = "listaCaronas"
-                                },
-                                aoClicarVoltar = { telaAtual = "listaCaronas" }
-                            )
-                        }
+                        "detalhes" -> DetalhesScreen(
+                            caronaInfo = caronaSelecionada,
+                            nomePassageiroLogado = nomeLogado,
+                            corridasIniciais = corridasRealizadas,
+                            passageirosIniciais = passageirosConduzidos,
+                            aoConfirmarCarona = {
+                                if (caronaSelecionada != null) {
+                                    BancoDeDados.fazerSolicitacao(caronaSelecionada!!, nomeLogado, cpfLogado)
+                                }
+                                telaAtual = "listaCaronas"
+                            },
+                            aoClicarVoltar = { telaAtual = "listaCaronas" }
+                        )
 
                         "status" -> MinhasSolicitacoesScreen(
                             isMotorista = veiculoLogado.isNotEmpty(),
@@ -274,54 +237,49 @@ class MainActivity : ComponentActivity() {
                                 emailLogado = ""
                                 telaAtual = "login"
                             },
-                            aoClicarNovoEvento = {
-                                telaAtual = "criarEvento"
-                            },
+                            aoClicarNovoEvento = { telaAtual = "criarEvento" },
                             aoClicarHistorico = { telaAtual = "historico" }
                         )
 
                         "perfil" -> {
-                            // 🟢 CORRIGIDO: Lógica de captura e formatação da data do sistema (DD/MM/AAAA)
                             val formatador = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
                             val dataFormatada = formatador.format(Date())
 
                             PerfilScreen(
                                 nome = nomeLogado,
                                 email = emailLogado,
-                                dataCadastro = dataFormatada, // 🟢 Injetando a variável dinâmica calculada acima
+                                dataCadastro = dataFormatada,
                                 veiculo = veiculoLogado,
                                 placa = placaLogada,
-                                corridas = corridasRealizadas,       // ⬅️ ADICIONEI ESTA LINHA
-                                passageiros = passageirosConduzidos, // ⬅️ ADICIONEI ESTA LINHA
+                                corridas = corridasRealizadas,
+                                passageiros = passageirosConduzidos,
                                 aoClicarSair = {
                                     veiculoLogado = ""
                                     nomeLogado = ""
                                     emailLogado = ""
+                                    usuarioLogado = ""
                                     telaAtual = "login"
                                 },
                                 aoClicarVoltar = {
-                                    telaAtual =
-                                        if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                                    telaAtual = if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
                                 },
                                 aoClicarExcluirConta = {
                                     BancoDeDados.excluirUsuario(emailLogado)
                                     veiculoLogado = ""
                                     nomeLogado = ""
                                     emailLogado = ""
+                                    usuarioLogado = ""
                                     telaAtual = "login"
                                 },
-                                // 🆕 O botão agora envia o utilizador para a tela de edição!
-                                aoClicarEditar = {
-                                    telaAtual = "editarPerfil"
-                                }
+                                aoClicarEditar = { telaAtual = "editarPerfil" }
                             )
                         }
 
                         "editarPerfil" -> {
-                            // Criamos um "Usuário" temporário só com o que temos guardado para a tela abrir
+                            // 🟢 COMPLETADO E UNIFICADO CONFORME VOCÊ PEDIU, MANTENDO O CPF VAZIO ("") ANTES DE CHAMAR A TELA
                             val usuarioParaEditar = Usuario(
                                 nome = nomeLogado,
-                                cpf = "",
+                                cpf = "",             // Mantido vazio exatamente como você pediu
                                 email = emailLogado,
                                 telefone = telefoneLogado,
                                 veiculo = veiculoLogado,
@@ -335,30 +293,15 @@ class MainActivity : ComponentActivity() {
                                 cidade = cidadeLogada,
                                 estado = estadoLogado,
                                 cep = cepLogado,
+                                usuario = usuarioLogado // Repassa o identificador estável
                             )
-                        }
-                        "editarPerfil" -> {
+
                             EditarPerfilScreen(
-                                usuarioAtual = Usuario(
-                                    nome = nomeLogado,
-                                    cpf = cpfLogado,       // 👈 Certifique-se de que cpfLogado está preenchido!
-                                    email = emailLogado,
-                                    telefone = telefoneLogado,
-                                    veiculo = veiculoLogado,
-                                    placa = placaLogada,
-                                    vagas = vagasLogada,
-                                    senha = "",            // senha não deve ser editada aqui
-                                    rua = ruaLogada,       // 👈 Verifique se esta variável tem o valor do banco
-                                    numero = numeroLogado,
-                                    complemento = complementoLogado,
-                                    bairro = bairroLogado,
-                                    cidade = cidadeLogada,
-                                    estado = estadoLogado,
-                                    cep = cepLogado
-                                ),
+                                usuarioAtual = usuarioParaEditar,
                                 aoSalvar = { usuarioAtualizado ->
                                     nomeLogado = usuarioAtualizado.nome
                                     telefoneLogado = usuarioAtualizado.telefone
+                                    emailLogado = usuarioAtualizado.email // 🟢 SALVA O E-MAIL EDITADO EM TEMPO REAL!
                                     veiculoLogado = usuarioAtualizado.veiculo
                                     placaLogada = usuarioAtualizado.placa
                                     vagasLogada = usuarioAtualizado.vagas
@@ -370,8 +313,7 @@ class MainActivity : ComponentActivity() {
                                     estadoLogado = usuarioAtualizado.estado
                                     cepLogado = usuarioAtualizado.cep
 
-                                    telaAtual =
-                                        "perfil" // Isso força o App a voltar para a tela de perfil
+                                    telaAtual = "perfil"
                                 },
                                 aoCancelar = { telaAtual = "perfil" }
                             )
