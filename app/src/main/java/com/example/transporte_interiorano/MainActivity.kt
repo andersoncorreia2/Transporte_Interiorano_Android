@@ -22,6 +22,7 @@ import java.net.URL
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
@@ -75,11 +76,11 @@ class MainActivity : ComponentActivity() {
                     var ruaLogada by remember { mutableStateOf("") }
                     var numeroLogado by remember { mutableStateOf("") }
                     var complementoLogado by remember { mutableStateOf("") }
-                    var bairroLogado by remember { mutableStateOf("") }
+                    var bairroLogada by remember { mutableStateOf("") }
                     var cidadeLogada by remember { mutableStateOf("") }
                     var estadoLogado by remember { mutableStateOf("") }
                     var cepLogado by remember { mutableStateOf("") }
-                    var usuarioLogado by remember { mutableStateOf("") } // 🟢 NOVO ESTADO DA MAIN SESSÃO
+                    var usuarioLogado by remember { mutableStateOf("") }
 
                     var corridasRealizadas by remember { mutableStateOf(0) }
                     var passageirosConduzidos by remember { mutableStateOf(0) }
@@ -102,11 +103,10 @@ class MainActivity : ComponentActivity() {
                         )
 
                         "login" -> LoginScreen(
-                            aoFazerLogin = { usernameInput, senha -> // 🟢 AGORA RECEBE USERNAME
+                            aoFazerLogin = { usernameInput, senha ->
                                 mensagemLogin = "Conectando ao servidor..."
                                 BancoDeDados.fazerLoginNuvem(usernameInput, senha) { usuarioEncontrado, erro ->
                                     if (usuarioEncontrado != null) {
-                                        // 1. Preenche os dados do usuário
                                         nomeLogado = usuarioEncontrado.nome
                                         cpfLogado = usuarioEncontrado.cpf
                                         emailLogado = usuarioEncontrado.email
@@ -117,20 +117,18 @@ class MainActivity : ComponentActivity() {
                                         ruaLogada = usuarioEncontrado.rua
                                         numeroLogado = usuarioEncontrado.numero
                                         complementoLogado = usuarioEncontrado.complemento
-                                        bairroLogado = usuarioEncontrado.bairro
+                                        bairroLogada = usuarioEncontrado.bairro
                                         cidadeLogada = usuarioEncontrado.cidade
                                         estadoLogado = usuarioEncontrado.estado
                                         cepLogado = usuarioEncontrado.cep
-                                        usuarioLogado = usuarioEncontrado.usuario // 🟢 SALVA O USERNAME NA MEMÓRIA
+                                        usuarioLogado = usuarioEncontrado.usuario
                                         mensagemLogin = ""
 
-                                        // 2. BUSCAR MÉTRICAS PELO CPF LOGADO
                                         BancoDeDados.buscarMétricasPorCpf(usuarioEncontrado.cpf) { corridas, pass ->
                                             corridasRealizadas = corridas
                                             passageirosConduzidos = pass
                                         }
 
-                                        // 3. Notificação e navegação
                                         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                                             if (task.isSuccessful) enviarTokenParaServidor(usuarioEncontrado.email, task.result)
                                         }
@@ -155,7 +153,7 @@ class MainActivity : ComponentActivity() {
                         )
 
                         "cadastro" -> CadastroScreen(
-                            aoConcluirCadastro = { nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, city, estado, cep, username -> // 🟢 COM USERNAME
+                            aoConcluirCadastro = { nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, city, estado, cep, username ->
                                 if (nome.isBlank() || cpf.isBlank() || telefone.isBlank() || email.isBlank() || senha.isBlank() || rua.isBlank() || numero.isBlank() || bairro.isBlank() || city.isBlank() || estado.isBlank() || cep.isBlank() || username.isBlank()) {
                                     erroDeCadastro = "Preencha todos os campos obrigatórios, incluindo o endereço e usuário!"
                                 } else {
@@ -213,19 +211,31 @@ class MainActivity : ComponentActivity() {
                             }
                         )
 
-                        "detalhes" -> DetalhesScreen(
-                            caronaInfo = caronaSelecionada,
-                            nomePassageiroLogado = nomeLogado,
-                            corridasIniciais = corridasRealizadas,
-                            passageirosIniciais = passageirosConduzidos,
-                            aoConfirmarCarona = {
-                                if (caronaSelecionada != null) {
-                                    BancoDeDados.fazerSolicitacao(caronaSelecionada!!, nomeLogado, cpfLogado)
-                                }
-                                telaAtual = "listaCaronas"
-                            },
-                            aoClicarVoltar = { telaAtual = "listaCaronas" }
-                        )
+                        "detalhes" -> {
+                            DetalhesScreen(
+                                caronaInfo = caronaSelecionada,
+                                nomePassageiroLogado = nomeLogado,
+                                corridasIniciais = corridasRealizadas,
+                                passageirosIniciais = passageirosConduzidos,
+                                aoConfirmarCarona = {
+                                    if (caronaSelecionada != null) {
+                                        // 1. Dispara o pedido que altera dinamicamente as vagas no seu app.py
+                                        BancoDeDados.fazerSolicitacao(
+                                            carona = caronaSelecionada!!,
+                                            nomePassageiro = nomeLogado,
+                                            cpfPassageiro = cpfLogado
+                                        )
+
+                                        // 2. Força o radar a atualizar os contadores de vagas na mesma hora
+                                        BancoDeDados.buscarCaronasDoServidor()
+                                        BancoDeDados.buscarSolicitacoesDoServidor()
+                                    }
+                                    // 3. Muda para a lista de caronas com os dados sincronizados
+                                    telaAtual = "listaCaronas"
+                                },
+                                aoClicarVoltar = { telaAtual = "listaCaronas" }
+                            )
+                        }
 
                         "status" -> MinhasSolicitacoesScreen(
                             isMotorista = veiculoLogado.isNotEmpty(),
@@ -271,48 +281,37 @@ class MainActivity : ComponentActivity() {
                                     usuarioLogado = ""
                                     telaAtual = "login"
                                 },
-                                aoClicarEditar = { telaAtual = "editarPerfil" }
+                                aoClicarEditar = { telaAtual = "editarPerfil" } // 🟢 CORRIGIDO: Agora aponta exatamente para "editarPerfil"
                             )
                         }
 
                         "editarPerfil" -> {
-                            // 🟢 COMPLETADO E UNIFICADO CONFORME VOCÊ PEDIU, MANTENDO O CPF VAZIO ("") ANTES DE CHAMAR A TELA
-                            val usuarioParaEditar = Usuario(
-                                nome = nomeLogado,
-                                cpf = "",             // Mantido vazio exatamente como você pediu
-                                email = emailLogado,
-                                telefone = telefoneLogado,
-                                veiculo = veiculoLogado,
-                                placa = placaLogada,
-                                vagas = vagasLogada,
-                                senha = "",
-                                rua = ruaLogada,
-                                numero = numeroLogado,
-                                complemento = complementoLogado,
-                                bairro = bairroLogado,
-                                cidade = cidadeLogada,
-                                estado = estadoLogado,
-                                cep = cepLogado,
-                                usuario = usuarioLogado // Repassa o identificador estável
+                            val usuarioAtual = Usuario(
+                                nome = nomeLogado, cpf = cpfLogado, email = emailLogado, telefone = telefoneLogado,
+                                veiculo = veiculoLogado, placa = placaLogada, vagas = vagasLogada,
+                                rua = ruaLogada, numero = numeroLogado, complemento = complementoLogado,
+                                bairro = bairroLogada, cidade = cidadeLogada, estado = estadoLogado, cep = cepLogado,
+                                usuario = usuarioLogado
                             )
-
                             EditarPerfilScreen(
-                                usuarioAtual = usuarioParaEditar,
+                                usuarioAtual = usuarioAtual,
                                 aoSalvar = { usuarioAtualizado ->
                                     nomeLogado = usuarioAtualizado.nome
+                                    emailLogado = usuarioAtualizado.email
                                     telefoneLogado = usuarioAtualizado.telefone
-                                    emailLogado = usuarioAtualizado.email // 🟢 SALVA O E-MAIL EDITADO EM TEMPO REAL!
                                     veiculoLogado = usuarioAtualizado.veiculo
                                     placaLogada = usuarioAtualizado.placa
                                     vagasLogada = usuarioAtualizado.vagas
                                     ruaLogada = usuarioAtualizado.rua
                                     numeroLogado = usuarioAtualizado.numero
                                     complementoLogado = usuarioAtualizado.complemento
-                                    bairroLogado = usuarioAtualizado.bairro
+                                    bairroLogada = usuarioAtualizado.bairro
                                     cidadeLogada = usuarioAtualizado.cidade
                                     estadoLogado = usuarioAtualizado.estado
                                     cepLogado = usuarioAtualizado.cep
+                                    usuarioLogado = usuarioAtualizado.usuario
 
+                                    Toast.makeText(this@MainActivity, "Alteração Realizada com Sucesso!", Toast.LENGTH_SHORT).show()
                                     telaAtual = "perfil"
                                 },
                                 aoCancelar = { telaAtual = "perfil" }
