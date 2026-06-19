@@ -113,6 +113,7 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
         .filter { it.passageiro.trim().equals(nomeLogado.trim(), ignoreCase = true) }
         .maxByOrNull { it.idReal }
 
+    //val vagasRestantes = carona.vagas.toIntOrNull() ?: 0
     val totalVagas = carona.vagas.toIntOrNull() ?: 0
     val qtdOcupadas = pedidosDaCarona.count { it.status.lowercase().contains("aceito") || it.status.lowercase().contains("pendente") }
     val vagasRestantes = totalVagas - qtdOcupadas

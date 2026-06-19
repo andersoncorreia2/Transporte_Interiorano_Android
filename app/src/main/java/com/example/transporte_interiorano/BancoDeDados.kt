@@ -64,9 +64,9 @@ object BancoDeDados {
                             id = item.getInt("id"),
                             evento_nome = item.optString("evento_nome", ""),
                             cidade_origem = item.optString("cidade_origem", ""),
-                            endereco_origem = item.optString("origem", ""),
+                            endereco_origem = item.optString("endereco_origem", ""), // 🟢 Alterado de "origem" para "endereco_origem"
                             cidade_destino = item.optString("cidade_destino", ""),
-                            endereco_destino = item.optString("destino", ""),
+                            endereco_destino = item.optString("endereco_destino", ""), // 🟢 Alterado de "destino" para "endereco_destino"
                             horario = item.getString("horario"),
                             vagas = item.getString("vagas"),
                             motorista = item.getString("motorista"),
@@ -79,9 +79,59 @@ object BancoDeDados {
                 }
                 caronas.clear()
                 caronas.addAll(novaLista)
-            } catch (erro: Exception) { erro.printStackTrace() }
+            } catch (erro: Exception) {
+                erro.printStackTrace()
+            }
         }
     }
+
+    fun fazerSolicitacao(carona: Carona, nomePassageiro: String, cpfPassageiro: String) {
+        //todosOsPedidos.add( // Bloco incluido
+            //Pedido(
+                //idReal = 0,
+                //caronaId = carona.id,
+                //passageiro = nomePassageiro,
+                //passageiroCpf = cpfPassageiro,
+                //status = "Pendente",
+                //evento_nome = "",
+                //cidade_origem = "",
+                //cidade_destino = "",
+                //horario = ""
+            //)
+        //)
+        thread {
+            try {
+                val url = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.doOutput = true
+
+                val json = JSONObject().apply {
+                    put("carona_id", carona.id)
+                    put("passageiro", nomePassageiro)
+                    put("passageiro_cpf", cpfPassageiro)
+                }
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+
+                val codigoResposta = conexao.responseCode
+                if (codigoResposta == 200 || codigoResposta == 201) {
+                    android.util.Log.d("SOLICITACAO_OK", "Pedido gravado com sucesso no Postgres!")
+                    //com.example.transporte_interiorano.buscarSolicitacoesDoServidor() // Força a atualização imediata da lista
+                    buscarSolicitacoesDoServidor()
+                } else {
+                    android.util.Log.e("SOLICITACAO_ERRO", "Servidor retornou código: $codigoResposta")
+                }
+            } catch (erro: Exception) {
+                android.util.Log.e("SOLICITACAO_CRASH", "Falha física ao enviar dados", erro)
+            }
+        }
+    }
+
+
 
     fun enviarCaronaParaServidor(nomeEvento: String, cidadeOrigem: String, enderecoOrigem: String, cidadeDestino: String, enderecoDestino: String, horario: String, vagas: String, motorista: String, motoristaCpf: String) {
         thread {
@@ -99,22 +149,22 @@ object BancoDeDados {
         }
     }
 
-    fun fazerSolicitacao(carona: Carona, nomePassageiro: String, cpfPassageiro: String) {
-        todosOsPedidos.add(Pedido(0, carona.id, nomePassageiro, cpfPassageiro, "Pendente"))
-        thread {
-            try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").openConnection() as HttpURLConnection
-                conexao.requestMethod = "POST"
-                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conexao.doOutput = true
-                val json = """{"carona_id": ${carona.id}, "passageiro": "$nomePassageiro", "passageiro_cpf": "$cpfPassageiro"}"""
-                val escritor = OutputStreamWriter(conexao.outputStream)
-                escritor.write(json)
-                escritor.flush()
-                buscarSolicitacoesDoServidor()
-            } catch (erro: Exception) {}
-        }
-    }
+    //fun fazerSolicitacao(carona: Carona, nomePassageiro: String, cpfPassageiro: String) {
+        //todosOsPedidos.add(Pedido(0, carona.id, nomePassageiro, cpfPassageiro, "Pendente"))
+        //thread {
+            //try {
+                //val conexao = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").openConnection() as HttpURLConnection
+                //conexao.requestMethod = "POST"
+                //conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                //conexao.doOutput = true
+                //val json = """{"carona_id": ${carona.id}, "passageiro": "$nomePassageiro", "passageiro_cpf": "$cpfPassageiro"}"""
+                //val escritor = OutputStreamWriter(conexao.outputStream)
+                //escritor.write(json)
+                //escritor.flush()
+                //buscarSolicitacoesDoServidor()
+            //} catch (erro: Exception) {}
+        //}
+    //}
 
     fun cancelarPedidoPassageiro(pedidoIdReal: Int) {
         todosOsPedidos.removeAll { it.idReal == pedidoIdReal }
@@ -133,16 +183,26 @@ object BancoDeDados {
     fun responderPedidoMotorista(pedidoIdReal: Int, statusDecidido: String) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes/$pedidoIdReal").openConnection() as HttpURLConnection
+                val url = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes/$pedidoIdReal")
+                val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "PUT"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
+
                 val json = """{"status": "$statusDecidido"}"""
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json)
                 escritor.flush()
-                buscarSolicitacoesDoServidor()
-            } catch (erro: Exception) {}
+
+                // 🟢 FIX CRÍTICO: Força o Android a disparar o PUT de verdade
+                val codigo = conexao.responseCode
+                if (codigo == 200 || codigo == 201) {
+                    android.util.Log.d("STATUS_OK", "Pedido respondido com sucesso!")
+                    buscarSolicitacoesDoServidor()
+                }
+            } catch (erro: Exception) {
+                erro.printStackTrace()
+            }
         }
     }
 
@@ -152,10 +212,21 @@ object BancoDeDados {
         temEventoAtivo = false
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/caronas/$caronaId").openConnection() as HttpURLConnection
+                val url = URL("https://transporte-interiorano-backend.onrender.com/caronas/$caronaId")
+                val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "DELETE"
-                buscarCaronasDoServidor()
-            } catch (erro: Exception) {}
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+
+                // 🟢 FIX CRÍTICO: Força o Android a disparar o DELETE de verdade
+                val codigo = conexao.responseCode
+                if (codigo == 200) {
+                    android.util.Log.d("DELETE_OK", "Evento excluído com sucesso!")
+                    buscarCaronasDoServidor()
+                    buscarSolicitacoesDoServidor()
+                }
+            } catch (erro: Exception) {
+                erro.printStackTrace()
+            }
         }
     }
 

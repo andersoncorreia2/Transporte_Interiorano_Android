@@ -28,6 +28,8 @@ import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.Date
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,6 +63,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize().safeDrawingPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+
                     var telaAtual by remember { mutableStateOf("splash") }
                     var erroDeCadastro by remember { mutableStateOf("") }
                     var mensagemLogin by remember { mutableStateOf("") }
@@ -149,17 +152,17 @@ class MainActivity : ComponentActivity() {
                                 mensagemLogin = ""
                                 telaAtual = "cadastro"
                             },
-                            mensagemErro = mensagemLogin
+                            mensagemErro = mensagemLogin // 🟢 CORRIGIDO AQUI!
                         )
 
                         "cadastro" -> CadastroScreen(
-                            aoConcluirCadastro = { nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, city, estado, cep, username ->
-                                if (nome.isBlank() || cpf.isBlank() || telefone.isBlank() || email.isBlank() || senha.isBlank() || rua.isBlank() || numero.isBlank() || bairro.isBlank() || city.isBlank() || estado.isBlank() || cep.isBlank() || username.isBlank()) {
+                            aoConcluirCadastro = { nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep, username ->
+                                if (nome.isBlank() || cpf.isBlank() || telefone.isBlank() || email.isBlank() || senha.isBlank() || rua.isBlank() || numero.isBlank() || bairro.isBlank() || cidade.isBlank() || estado.isBlank() || cep.isBlank() || username.isBlank()) {
                                     erroDeCadastro = "Preencha todos os campos obrigatórios, incluindo o endereço e usuário!"
                                 } else {
                                     erroDeCadastro = "Conectando ao servidor..."
                                     BancoDeDados.cadastrarUsuarioNuvem(
-                                        nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, city, estado, cep, username
+                                        nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep, username
                                     ) { sucesso, mensagem ->
                                         if (sucesso) {
                                             erroDeCadastro = ""
@@ -174,7 +177,7 @@ class MainActivity : ComponentActivity() {
                                 erroDeCadastro = ""
                                 telaAtual = "login"
                             },
-                            mensagemErro = erroDeCadastro
+                            mensagemErro = erroDeCadastro // 🟢 CORRIGIDO AQUI TAMBÉM!
                         )
 
                         "criarEvento" -> CriarEventoScreen(
@@ -212,6 +215,7 @@ class MainActivity : ComponentActivity() {
                         )
 
                         "detalhes" -> {
+                            val escopoCorrotina = rememberCoroutineScope()
                             DetalhesScreen(
                                 caronaInfo = caronaSelecionada,
                                 nomePassageiroLogado = nomeLogado,
@@ -219,18 +223,61 @@ class MainActivity : ComponentActivity() {
                                 passageirosIniciais = passageirosConduzidos,
                                 aoConfirmarCarona = {
                                     if (caronaSelecionada != null) {
-                                        // 1. Dispara o pedido que altera dinamicamente as vagas no seu app.py
+                                        // 1. Decrementa o contador visual na hora
+                                        //val idAlvo = caronaSelecionada!!.id
+                                        //val index = BancoDeDados.caronas.indexOfFirst { it.id == idAlvo }
+                                        //if (index != -1) {
+                                            //val caronaAtual = BancoDeDados.caronas[index]
+                                            //val vagasNum = caronaAtual.vagas.toIntOrNull() ?: 0
+                                            //if (vagasNum > 0) {
+                                                //BancoDeDados.caronas[index] = caronaAtual.copy(
+                                                    //vagas = (vagasNum - 1).toString()
+                                                //)
+                                            //}
+                                        //}
+
+                                        // 2. Insere o pedido pendente local para ativar o botão Cancelar na ListaCaronasScreen
+                                        //BancoDeDados.todosOsPedidos.add(
+                                            //Pedido(
+                                                //idReal = 999, // provisório até o radar atualizar
+                                                //caronaId = idAlvo,
+                                                //passageiro = nomeLogado,
+                                                //passageiroCpf = cpfLogado,
+                                                //status = "Pendente",
+                                                //evento_nome = caronaSelecionada!!.evento_nome,
+                                                //cidade_origem = caronaSelecionada!!.cidade_origem,
+                                                //cidade_destino = caronaSelecionada!!.cidade_destino,
+                                                //horario = caronaSelecionada!!.horario
+                                            //)
+                                        //)
+
+                                        // 🟢 APENAS ADICIONA O PEDIDO PENDENTE LOCAL:
+                                        // A ListaCaronasScreen fará a matemática automática (4 - 1 = 3)
+                                        BancoDeDados.todosOsPedidos.add(
+                                            Pedido(
+                                                idReal = 9999,
+                                                caronaId = caronaSelecionada!!.id,
+                                                passageiro = nomeLogado,
+                                                passageiroCpf = cpfLogado,
+                                                status = "Pendente"
+                                            )
+                                        )
+
+                                        // 3. Dispara o envio físico para o DBeaver
                                         BancoDeDados.fazerSolicitacao(
                                             carona = caronaSelecionada!!,
                                             nomePassageiro = nomeLogado,
                                             cpfPassageiro = cpfLogado
                                         )
 
-                                        // 2. Força o radar a atualizar os contadores de vagas na mesma hora
-                                        BancoDeDados.buscarCaronasDoServidor()
-                                        BancoDeDados.buscarSolicitacoesDoServidor()
+                                        escopoCorrotina.launch {
+                                            try {
+                                                delay(1000) // 1 segundo de folga para o Render persistir no Postgres
+                                                BancoDeDados.buscarCaronasDoServidor()
+                                                BancoDeDados.buscarSolicitacoesDoServidor()
+                                            } catch (e: Exception) {}
+                                        }
                                     }
-                                    // 3. Muda para a lista de caronas com os dados sincronizados
                                     telaAtual = "listaCaronas"
                                 },
                                 aoClicarVoltar = { telaAtual = "listaCaronas" }
@@ -281,11 +328,14 @@ class MainActivity : ComponentActivity() {
                                     usuarioLogado = ""
                                     telaAtual = "login"
                                 },
-                                aoClicarEditar = { telaAtual = "editarPerfil" } // 🟢 CORRIGIDO: Agora aponta exatamente para "editarPerfil"
+                                aoClicarEditar = { telaAtual = "editarPerfil" }
                             )
                         }
 
                         "editarPerfil" -> {
+                            // 🟢 ADICIONADO: Captura o escopo de corrotina para garantir a navegação segura de UI
+                            //val escopoMainActivity = rememberCoroutineScope()
+
                             val usuarioAtual = Usuario(
                                 nome = nomeLogado, cpf = cpfLogado, email = emailLogado, telefone = telefoneLogado,
                                 veiculo = veiculoLogado, placa = placaLogada, vagas = vagasLogada,
@@ -296,6 +346,7 @@ class MainActivity : ComponentActivity() {
                             EditarPerfilScreen(
                                 usuarioAtual = usuarioAtual,
                                 aoSalvar = { usuarioAtualizado ->
+                                    // 1. Atualiza as variáveis de estado local da sessão
                                     nomeLogado = usuarioAtualizado.nome
                                     emailLogado = usuarioAtualizado.email
                                     telefoneLogado = usuarioAtualizado.telefone
@@ -311,10 +362,20 @@ class MainActivity : ComponentActivity() {
                                     cepLogado = usuarioAtualizado.cep
                                     usuarioLogado = usuarioAtualizado.usuario
 
-                                    Toast.makeText(this@MainActivity, "Alteração Realizada com Sucesso!", Toast.LENGTH_SHORT).show()
-                                    telaAtual = "perfil"
+                                    // 🟢 FIX CRÍTICO: Mantém o nome do usuário/username intacto para não quebrar a sessão
+                                    if (usuarioAtualizado.usuario.isNotEmpty()) {
+                                        usuarioLogado = usuarioAtualizado.usuario
+                                    }
+
+                                    // 2. 🟢 REDIRECIONAMENTO SÍNCRONO: Executa a troca de tela na Main UI Thread de forma limpa
+                                    this@MainActivity.runOnUiThread {
+                                        Toast.makeText(this@MainActivity, "Alteração Realizada com Sucesso!", Toast.LENGTH_SHORT).show()
+                                        telaAtual = "perfil"
+                                    }
                                 },
-                                aoCancelar = { telaAtual = "perfil" }
+                                aoCancelar = {
+                                    telaAtual = "perfil"
+                                }
                             )
                         }
                     }

@@ -22,6 +22,7 @@ import com.example.transporte_interiorano.Pedido
 import com.example.transporte_interiorano.ui.theme.*
 import androidx.compose.runtime.*
 import androidx.compose.material.icons.filled.ArrowBack
+import kotlinx.coroutines.launch
 
 @Composable
 fun MinhasSolicitacoesScreen(
@@ -30,19 +31,17 @@ fun MinhasSolicitacoesScreen(
     aoClicarPerfil: () -> Unit,
     aoClicarVoltar: () -> Unit,
     aoClicarNovoEvento: () -> Unit,
-    aoClicarHistorico: () -> Unit // 👈 Adicione isso
+    aoClicarHistorico: () -> Unit
 ) {
     LaunchedEffect(Unit) {
         BancoDeDados.buscarCaronasDoServidor()
         BancoDeDados.buscarSolicitacoesDoServidor()
     }
 
-    // 🟢 CORRIGIDO: Lógica reativa de ordenação por relevância de pedidos ativos
     val minhasCaronasOrdenadas = remember(BancoDeDados.caronas, BancoDeDados.todosOsPedidos) {
         BancoDeDados.caronas
             .filter { it.motorista == nomeMotoristaLogado }
             .sortedByDescending { carona ->
-                // Conta quantos passageiros ativos (Pendentes ou Aceitos) este evento possui no momento
                 BancoDeDados.todosOsPedidos.count { pedido ->
                     pedido.caronaId == carona.id &&
                             (pedido.status.lowercase().contains("pendente") || pedido.status.lowercase().contains("aceito"))
@@ -68,7 +67,6 @@ fun MinhasSolicitacoesScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // 🟢 ATUALIZADO: Agora consome a lista ordenada dinamicamente
         if (minhasCaronasOrdenadas.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text("Nenhum evento criado por você no momento.", color = Color.Gray)
@@ -76,7 +74,8 @@ fun MinhasSolicitacoesScreen(
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(minhasCaronasOrdenadas) { carona ->
-                    CartaoEventoMotorista(carona)
+                    // Passa a ação de voltar/atualizar para dentro do cartão
+                    CartaoEventoMotorista(carona, aoExcluirComSucesso = aoClicarVoltar)
                 }
             }
         }
@@ -93,7 +92,7 @@ fun MinhasSolicitacoesScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
-            onClick = aoClicarHistorico, // AQUI VOCÊ CHAMA O PARÂMETRO QUE VOCÊ ADICIONOU
+            onClick = aoClicarHistorico,
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = AzulPrincipal)
@@ -104,7 +103,7 @@ fun MinhasSolicitacoesScreen(
 }
 
 @Composable
-fun CartaoEventoMotorista(carona: Carona) {
+fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) { // 🟢 CORRIGIDO: Assinatura agora aceita o parâmetro de callback!
     val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == carona.id }
     val totalVagas = carona.vagas.toIntOrNull() ?: 0
     val qtdOcupadas = pedidosDaCarona.count {
@@ -121,7 +120,6 @@ fun CartaoEventoMotorista(carona: Carona) {
             Text("Evento: ${carona.evento_nome}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
             Text(" ${carona.evento_nome}", fontSize = 12.sp, color = Color.Gray)
 
-            // APAGUEI OS SPACERS DAQUI!
             Text("📍 Origem: ${carona.cidade_origem}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text(" Endereço: ${carona.endereco_origem}", fontSize = 12.sp, color = Color.Gray)
 
@@ -135,7 +133,6 @@ fun CartaoEventoMotorista(carona: Carona) {
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(thickness = 1.dp, color = Color.LightGray)
 
-            // O motorista SÓ vê quem ainda não foi recusado/expirado
             val pedidosAtivos = pedidosDaCarona.filter {
                 val status = it.status.lowercase()
                 !status.contains("finalizado") && !status.contains("recusado") && !status.contains("expirado")
@@ -150,9 +147,25 @@ fun CartaoEventoMotorista(carona: Carona) {
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // 🟢 ADICIONADO: Captura o escopo de corrotina para gerenciar o tempo de resposta da UI
+            val escopoStatus = rememberCoroutineScope()
+
             OutlinedButton(
-                onClick = { BancoDeDados.excluirCaronaDoServidor(carona.id) },
-                modifier = Modifier.fillMaxWidth().height(36.dp), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = VermelhoErro)
+                onClick = {
+                    // 1. Executa a remoção física no banco de dados
+                    BancoDeDados.excluirCaronaDoServidor(carona.id)
+
+                    // 2. 🟢 CORRIGIDO: Aguarda o término da deleção na nuvem para atualizar o ecrã na hora
+                    escopoStatus.launch {
+                        kotlinx.coroutines.delay(800)
+                        BancoDeDados.buscarCaronasDoServidor()
+                        BancoDeDados.buscarSolicitacoesDoServidor()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(36.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = VermelhoErro)
             ) { Text("🗑️ Excluir Este Evento", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
         }
     }
@@ -198,7 +211,6 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                     }
                 }
             } else {
-                // 🆕 Lógica atualizada para reconhecer "Finalizado"
                 val ehAceito = statusLimpo.contains("aceito")
                 val ehFinalizado = statusLimpo.contains("finalizado")
 
@@ -222,10 +234,8 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
-                    // Se já estiver Finalizado, escondemos os botões para não permitir mais ações
                     if (!ehFinalizado) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // Botão Retornar (o da setinha)
                             IconButton(
                                 onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Pendente") },
                                 modifier = Modifier.weight(1f).background(Color.Yellow, RoundedCornerShape(8.dp)).height(40.dp)
@@ -236,7 +246,7 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                                     BancoDeDados.finalizarSolicitacaoNuvem(
                                         solicitacaoId = pedido.idReal,
                                         motorista = caronaMotorista,
-                                        passageiroCpf = pedido.passageiroCpf, // Certifique-se de que o objeto Pedido tem esse campo
+                                        passageiroCpf = pedido.passageiroCpf,
                                         caronaId = pedido.caronaId
                                     )
                                 },
