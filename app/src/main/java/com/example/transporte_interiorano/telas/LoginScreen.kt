@@ -25,6 +25,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun LoginScreen(
@@ -32,7 +34,8 @@ fun LoginScreen(
     aoClicarCriarConta: () -> Unit,
     mensagemErro: String = ""
 ) {
-    var usuarioInput by remember { mutableStateOf("") } // 🟢 ALTERADO DE EMAIL PARA USUÁRIO
+    val context = LocalContext.current
+    var usuarioInput by remember { mutableStateOf("") }
     var senha by remember { mutableStateOf("") }
     var senhaVisivel by remember { mutableStateOf(false) }
 
@@ -79,7 +82,6 @@ fun LoginScreen(
             )
         }
 
-        // 🟢 ALTERADO: Campo agora recebe o nome de usuário (username)
         OutlinedTextField(
             value = usuarioInput,
             onValueChange = { usuarioInput = it.filter { char -> !char.isWhitespace() } },
@@ -150,8 +152,13 @@ fun LoginScreen(
                                     statusCorModal = VermelhoErro
                                     return@Button
                                 }
+
+                                // 🟢 FIX CIRÚRGICO: Limpeza absoluta de caracteres invisíveis e formatações antes do envio
+                                val emailGarantido = emailRecup.trim().lowercase()
+                                val cpfGarantido = cpfRecup.filter { it.isDigit() }.trim()
+
                                 carregandoModal = true
-                                BancoDeDados.solicitarCodigoRecuperacao(emailRecup.trim(), cpfRecup) { sucesso, msg, _ ->
+                                BancoDeDados.solicitarCodigoRecuperacao(emailGarantido, cpfGarantido) { sucesso, msg, _ ->
                                     carregandoModal = false
                                     if (sucesso) {
                                         emFaseDeValidacaoOtp = true
@@ -174,10 +181,18 @@ fun LoginScreen(
                                     statusCorModal = VermelhoErro
                                     return@Button
                                 }
+
+                                val emailFinalRedefinir = emailRecup.trim().lowercase()
                                 carregandoModal = true
-                                BancoDeDados.redefinirSenhaComCodigo(emailRecup.trim(), codigoOtpRecup, novaSenhaRecup) { sucesso, msg ->
+                                BancoDeDados.redefinirSenhaComCodigo(emailFinalRedefinir, codigoOtpRecup.trim(), novaSenhaRecup) { sucesso, msg ->
                                     carregandoModal = false
-                                    if (sucesso) { mostrarDialogSenha = false } else { mensagemStatusModal = msg; statusCorModal = VermelhoErro }
+                                    if (sucesso) {
+                                        Toast.makeText(context, "Senha alterada com sucesso!", Toast.LENGTH_SHORT).show()
+                                        mostrarDialogSenha = false
+                                    } else {
+                                        mensagemStatusModal = msg
+                                        statusCorModal = VermelhoErro
+                                    }
                                 }
                             }
                         },
@@ -191,7 +206,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = { aoFazerLogin(usuarioInput, senha) }, // 🟢 PASSA O USERNAME
+            onClick = { aoFazerLogin(usuarioInput, senha) },
             colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) { Text("Entrar") }

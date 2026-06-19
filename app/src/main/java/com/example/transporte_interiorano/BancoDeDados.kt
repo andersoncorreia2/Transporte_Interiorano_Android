@@ -51,54 +51,79 @@ object BancoDeDados {
     var temEventoAtivo: Boolean = false
     var tokenSessao: String = ""
 
-    fun buscarCaronasDoServidor() {
-        thread {
-            try {
-                val resposta = URL("https://transporte-interiorano-backend.onrender.com/caronas").readText()
-                val jsonArray = JSONArray(resposta)
-                val novaLista = mutableListOf<Carona>()
-                for (i in 0 until jsonArray.length()) {
-                    val item = jsonArray.getJSONObject(i)
-                    novaLista.add(
-                        Carona(
-                            id = item.getInt("id"),
+    // 🟢 OTIMIZADO: Criada uma função síncrona interna para ser chamada de dentro das threads de rede de forma segura
+    private fun carregarDadosSincrono() {
+        try {
+            val respostaCaronas = URL("https://transporte-interiorano-backend.onrender.com/caronas").readText()
+            val jsonArrayCaronas = JSONArray(respostaCaronas)
+            val novaListaCaronas = mutableListOf<Carona>()
+            for (i in 0 until jsonArrayCaronas.length()) {
+                val item = jsonArrayCaronas.getJSONObject(i)
+                novaListaCaronas.add(
+                    Carona(
+                        id = item.getInt("id"),
+                        evento_nome = item.optString("evento_nome", ""),
+                        cidade_origem = item.optString("cidade_origem", ""),
+                        endereco_origem = item.optString("endereco_origem", ""),
+                        cidade_destino = item.optString("cidade_destino", ""),
+                        endereco_destino = item.optString("endereco_destino", ""),
+                        horario = item.getString("horario"),
+                        vagas = item.getString("vagas"),
+                        motorista = item.getString("motorista"),
+                        motorista_cpf = item.optString("motorista_cpf", ""),
+                        corridas_realizadas = item.optInt("corridas_realizadas", 0),
+                        passageiros_conduzidos = item.optInt("passageiros_conduzidos", 0),
+                        status = item.optString("status", "Aberta")
+                    )
+                )
+            }
+
+            val respostaSolicitacoes = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").readText()
+            val jsonArraySolicitacoes = JSONArray(respostaSolicitacoes)
+            val novaListaPedidos = mutableListOf<Pedido>()
+            for (i in 0 until jsonArraySolicitacoes.length()) {
+                val item = jsonArraySolicitacoes.getJSONObject(i)
+                val status = item.getString("status")
+                if (!status.equals("Finalizado", ignoreCase = true)) {
+                    novaListaPedidos.add(
+                        Pedido(
+                            idReal = item.getInt("id"),
+                            caronaId = item.getInt("carona_id"),
+                            passageiro = item.getString("passageiro"),
+                            passageiroCpf = item.optString("passageiro_cpf", ""),
+                            status = status,
                             evento_nome = item.optString("evento_nome", ""),
                             cidade_origem = item.optString("cidade_origem", ""),
-                            endereco_origem = item.optString("endereco_origem", ""), // 🟢 Alterado de "origem" para "endereco_origem"
                             cidade_destino = item.optString("cidade_destino", ""),
-                            endereco_destino = item.optString("endereco_destino", ""), // 🟢 Alterado de "destino" para "endereco_destino"
-                            horario = item.getString("horario"),
-                            vagas = item.getString("vagas"),
-                            motorista = item.getString("motorista"),
-                            motorista_cpf = item.optString("motorista_cpf", ""),
-                            corridas_realizadas = item.optInt("corridas_realizadas", 0),
-                            passageiros_conduzidos = item.optInt("passageiros_conduzidos", 0),
-                            status = item.optString("status", "Aberta")
+                            horario = item.optString("horario", "")
                         )
                     )
                 }
-                caronas.clear()
-                caronas.addAll(novaLista)
-            } catch (erro: Exception) {
-                erro.printStackTrace()
             }
+
+            // Atualiza as listas atômicas do Compose de uma vez só na thread principal implicitamente
+            caronas.clear()
+            caronas.addAll(novaListaCaronas)
+            todosOsPedidos.clear()
+            todosOsPedidos.addAll(novaListaPedidos)
+        } catch (erro: Exception) {
+            erro.printStackTrace()
+        }
+    }
+
+    fun buscarCaronasDoServidor() {
+        thread {
+            carregarDadosSincrono()
+        }
+    }
+
+    fun buscarSolicitacoesDoServidor() {
+        thread {
+            carregarDadosSincrono()
         }
     }
 
     fun fazerSolicitacao(carona: Carona, nomePassageiro: String, cpfPassageiro: String) {
-        //todosOsPedidos.add( // Bloco incluido
-            //Pedido(
-                //idReal = 0,
-                //caronaId = carona.id,
-                //passageiro = nomePassageiro,
-                //passageiroCpf = cpfPassageiro,
-                //status = "Pendente",
-                //evento_nome = "",
-                //cidade_origem = "",
-                //cidade_destino = "",
-                //horario = ""
-            //)
-        //)
         thread {
             try {
                 val url = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes")
@@ -117,21 +142,15 @@ object BancoDeDados {
                 escritor.write(json.toString())
                 escritor.flush()
 
-                val codigoResposta = conexao.responseCode
-                if (codigoResposta == 200 || codigoResposta == 201) {
+                if (conexao.responseCode == 200 || conexao.responseCode == 201) {
                     android.util.Log.d("SOLICITACAO_OK", "Pedido gravado com sucesso no Postgres!")
-                    //com.example.transporte_interiorano.buscarSolicitacoesDoServidor() // Força a atualização imediata da lista
-                    buscarSolicitacoesDoServidor()
-                } else {
-                    android.util.Log.e("SOLICITACAO_ERRO", "Servidor retornou código: $codigoResposta")
+                    carregarDadosSincrono()
                 }
             } catch (erro: Exception) {
-                android.util.Log.e("SOLICITACAO_CRASH", "Falha física ao enviar dados", erro)
+                erro.printStackTrace()
             }
         }
     }
-
-
 
     fun enviarCaronaParaServidor(nomeEvento: String, cidadeOrigem: String, enderecoOrigem: String, cidadeDestino: String, enderecoDestino: String, horario: String, vagas: String, motorista: String, motoristaCpf: String) {
         thread {
@@ -140,31 +159,32 @@ object BancoDeDados {
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
-                val json = """{"evento_nome": "$nomeEvento", "cidade_origem": "$cidadeOrigem", "endereco_origem": "$enderecoOrigem", "cidade_destino": "$cidadeDestino", "endereco_destino": "$enderecoDestino", "horario": "$horario", "vagas": "$vagas", "motorista": "$motorista", "motorista_cpf": "$motoristaCpf"}"""
+
+                val json = JSONObject().apply {
+                    put("evento_nome", nomeEvento)
+                    put("cidade_origem", cidadeOrigem)
+                    put("endereco_origem", enderecoOrigem)
+                    put("cidade_destino", cidadeDestino)
+                    put("endereco_destino", enderecoDestino)
+                    put("horario", horario)
+                    put("vagas", vagas)
+                    put("motorista", motorista)
+                    put("motorista_cpf", motoristaCpf)
+                }
+
                 val escritor = OutputStreamWriter(conexao.outputStream)
-                escritor.write(json)
+                escritor.write(json.toString())
                 escritor.flush()
-                if (conexao.responseCode == 201) buscarCaronasDoServidor()
-            } catch (erro: Exception) { erro.printStackTrace() }
+
+                // 🟢 CORRIGIDO: Espera o servidor cadastrar antes de puxar a lista atualizada
+                if (conexao.responseCode == 201) {
+                    carregarDadosSincrono()
+                }
+            } catch (erro: Exception) {
+                erro.printStackTrace()
+            }
         }
     }
-
-    //fun fazerSolicitacao(carona: Carona, nomePassageiro: String, cpfPassageiro: String) {
-        //todosOsPedidos.add(Pedido(0, carona.id, nomePassageiro, cpfPassageiro, "Pendente"))
-        //thread {
-            //try {
-                //val conexao = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").openConnection() as HttpURLConnection
-                //conexao.requestMethod = "POST"
-                //conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                //conexao.doOutput = true
-                //val json = """{"carona_id": ${carona.id}, "passageiro": "$nomePassageiro", "passageiro_cpf": "$cpfPassageiro"}"""
-                //val escritor = OutputStreamWriter(conexao.outputStream)
-                //escritor.write(json)
-                //escritor.flush()
-                //buscarSolicitacoesDoServidor()
-            //} catch (erro: Exception) {}
-        //}
-    //}
 
     fun cancelarPedidoPassageiro(pedidoIdReal: Int) {
         todosOsPedidos.removeAll { it.idReal == pedidoIdReal }
@@ -173,8 +193,7 @@ object BancoDeDados {
                 val conexao = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes/$pedidoIdReal").openConnection() as HttpURLConnection
                 conexao.requestMethod = "DELETE"
                 if (conexao.responseCode == 200) {
-                    buscarSolicitacoesDoServidor()
-                    buscarCaronasDoServidor()
+                    carregarDadosSincrono()
                 }
             } catch (erro: Exception) {}
         }
@@ -194,11 +213,9 @@ object BancoDeDados {
                 escritor.write(json)
                 escritor.flush()
 
-                // 🟢 FIX CRÍTICO: Força o Android a disparar o PUT de verdade
-                val codigo = conexao.responseCode
-                if (codigo == 200 || codigo == 201) {
+                if (conexao.responseCode == 200 || conexao.responseCode == 201) {
                     android.util.Log.d("STATUS_OK", "Pedido respondido com sucesso!")
-                    buscarSolicitacoesDoServidor()
+                    carregarDadosSincrono()
                 }
             } catch (erro: Exception) {
                 erro.printStackTrace()
@@ -207,6 +224,7 @@ object BancoDeDados {
     }
 
     fun excluirCaronaDoServidor(caronaId: Int) {
+        // Remove localmente primeiro para feedback instantâneo
         caronas.removeAll { it.id == caronaId }
         todosOsPedidos.removeAll { it.caronaId == caronaId }
         temEventoAtivo = false
@@ -217,12 +235,10 @@ object BancoDeDados {
                 conexao.requestMethod = "DELETE"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
 
-                // 🟢 FIX CRÍTICO: Força o Android a disparar o DELETE de verdade
-                val codigo = conexao.responseCode
-                if (codigo == 200) {
+                // 🟢 CORRIGIDO: Força a requisição de DELETE síncrona e reconstrói o estado na hora
+                if (conexao.responseCode == 200) {
                     android.util.Log.d("DELETE_OK", "Evento excluído com sucesso!")
-                    buscarCaronasDoServidor()
-                    buscarSolicitacoesDoServidor()
+                    carregarDadosSincrono()
                 }
             } catch (erro: Exception) {
                 erro.printStackTrace()
@@ -246,45 +262,17 @@ object BancoDeDados {
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json.toString())
                 escritor.flush()
-                if (conexao.responseCode == 200) buscarSolicitacoesDoServidor()
+                if (conexao.responseCode == 200) {
+                    carregarDadosSincrono()
+                }
             } catch (e: Exception) { e.printStackTrace() }
         }
-    }
-
-    fun buscarSolicitacoesDoServidor() {
-        try {
-            val resposta = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").readText()
-            val jsonArray = JSONArray(resposta)
-            val novaLista = mutableListOf<Pedido>()
-            for (i in 0 until jsonArray.length()) {
-                val item = jsonArray.getJSONObject(i)
-                val status = item.getString("status")
-                if (!status.equals("Finalizado", ignoreCase = true)) {
-                    novaLista.add(
-                        Pedido(
-                            idReal = item.getInt("id"),
-                            caronaId = item.getInt("carona_id"),
-                            passageiro = item.getString("passageiro"),
-                            passageiroCpf = item.optString("passageiro_cpf", ""),
-                            status = status,
-                            evento_nome = item.optString("evento_nome", ""),
-                            cidade_origem = item.optString("cidade_origem", ""),
-                            cidade_destino = item.optString("cidade_destino", ""),
-                            horario = item.optString("horario", "")
-                        )
-                    )
-                }
-            }
-            todosOsPedidos.clear()
-            todosOsPedidos.addAll(novaLista)
-        } catch (erro: Exception) { erro.printStackTrace() }
     }
 
     fun ligarRadar() {
         thread {
             while (true) {
-                buscarCaronasDoServidor()
-                buscarSolicitacoesDoServidor()
+                carregarDadosSincrono()
                 Thread.sleep(5000)
             }
         }
@@ -411,7 +399,6 @@ object BancoDeDados {
         }
     }
 
-    // 🟢 REINSERIDA: Função de Histórico do Passageiro mapeada perfeitamente
     fun buscarHistoricoPassageiroPorCpf(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
         thread {
             try {
@@ -434,7 +421,6 @@ object BancoDeDados {
         }
     }
 
-    // 🟢 REINSERIDA E CORRIGIDA: Função de Histórico do Motorista que estava faltando!
     fun buscarHistoricoMotoristaPorCpf(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
         thread {
             try {
@@ -482,22 +468,39 @@ object BancoDeDados {
     }
 
     fun solicitarCodigoRecuperacao(email: String, cpf: String, aoTerminar: (Boolean, String, String?) -> Unit) {
-        val cpfLimpo = cpf.filter { it.isDigit() }
+        val cpfLimpo = cpf.filter { it.isDigit() }.trim()
+        val emailTratado = email.trim().lowercase()
+
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/solicitar_codigo").openConnection() as HttpURLConnection
+                val url = URL("https://transporte-interiorano-backend.onrender.com/solicitar_codigo")
+                val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
-                val json = """{"email": "$email", "cpf": "$cpfLimpo"}"""
+
+                val jsonPayload = JSONObject().apply {
+                    put("email", emailTratado)
+                    put("cpf", cpfLimpo)
+                }
+
                 val escritor = OutputStreamWriter(conexao.outputStream)
-                escritor.write(json)
+                escritor.write(jsonPayload.toString())
                 escritor.flush()
-                if (conexao.responseCode == 200) {
-                    val res = JSONObject(conexao.inputStream.bufferedReader().readText())
-                    aoTerminar(true, "Código enviado para o e-mail cadastrado!", res.optString("codigo_debug", null))
-                } else { aoTerminar(false, "Dados incorretos ou não cadastrados.", null) }
-            } catch (erro: Exception) { aoTerminar(false, "Falha na conexão.", null) }
+
+                val codigoResposta = conexao.responseCode
+                if (codigoResposta == 200) {
+                    val textoResposta = conexao.inputStream.bufferedReader().readText()
+                    val res = JSONObject(textoResposta)
+                    val mensagemServidor = res.optString("mensagem", "Código enviado para o e-mail cadastrado!")
+                    aoTerminar(true, mensagemServidor, "")
+                } else {
+                    aoTerminar(false, "Dados incorretos ou não cadastrados.", null)
+                }
+            } catch (erro: Exception) {
+                erro.printStackTrace()
+                aoTerminar(false, "Falha na conexão.", null)
+            }
         }
     }
 
