@@ -7,6 +7,8 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
+import android.os.Handler
+import android.os.Looper
 
 data class Carona(
     val id: Int = 0,
@@ -478,6 +480,8 @@ object BancoDeDados {
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
+                conexao.connectTimeout = 60000
+                conexao.readTimeout = 60000
 
                 val jsonPayload = JSONObject().apply {
                     put("email", emailTratado)
@@ -487,19 +491,29 @@ object BancoDeDados {
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(jsonPayload.toString())
                 escritor.flush()
+                escritor.close()
 
                 val codigoResposta = conexao.responseCode
+
+                // 🟢 CORRIGIDO: Agora lê o erro do servidor se der falha
                 if (codigoResposta == 200) {
                     val textoResposta = conexao.inputStream.bufferedReader().readText()
                     val res = JSONObject(textoResposta)
                     val mensagemServidor = res.optString("mensagem", "Código enviado para o e-mail cadastrado!")
                     aoTerminar(true, mensagemServidor, "")
                 } else {
-                    aoTerminar(false, "Dados incorretos ou não cadastrados.", null)
+                    val erroStream = conexao.errorStream
+                    val textoErro = erroStream?.bufferedReader()?.readText() ?: "Erro desconhecido no servidor"
+                    var mensagemErro = "Dados incorretos ou não cadastrados."
+                    try {
+                        val resErro = JSONObject(textoErro)
+                        mensagemErro = resErro.optString("erro", mensagemErro)
+                    } catch (e: Exception) {}
+                    aoTerminar(false, mensagemErro, null)
                 }
             } catch (erro: Exception) {
                 erro.printStackTrace()
-                aoTerminar(false, "Falha na conexão.", null)
+                aoTerminar(false, "Falha na conexão. Verifique sua internet.", null)
             }
         }
     }
@@ -511,12 +525,47 @@ object BancoDeDados {
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
-                val json = """{"email": "$email", "codigo": "$codigo", "senha": "$novaSenha"}"""
+                conexao.connectTimeout = 60000
+                conexao.readTimeout = 60000
+
+                val json = JSONObject().apply {
+                    put("email", email.trim().lowercase())
+                    put("codigo", codigo.trim())
+                    put("senha", novaSenha)
+                }
+
                 val escritor = OutputStreamWriter(conexao.outputStream)
-                escritor.write(json)
+                escritor.write(json.toString())
                 escritor.flush()
-                aoTerminar(conexao.responseCode == 200, "")
-            } catch (erro: Exception) { aoTerminar(false, "") }
+                escritor.close()
+
+                val codigoResposta = conexao.responseCode
+
+                // 🟢 Garante que a resposta vai para a Thread Principal (UI Thread)
+                if (codigoResposta == 200) {
+                    Handler(Looper.getMainLooper()).post {
+                        aoTerminar(true, "Senha alterada com sucesso!")
+                    }
+                } else {
+                    val erroStream = conexao.errorStream
+                    val textoErro = erroStream?.bufferedReader()?.readText() ?: "Erro desconhecido (Código $codigoResposta)"
+                    var mensagemErro = "Falha ao alterar a senha."
+                    try {
+                        val resErro = JSONObject(textoErro)
+                        mensagemErro = resErro.optString("erro", mensagemErro)
+                    } catch (e: Exception) {
+                        mensagemErro = "Erro do servidor: $textoErro"
+                    }
+                    Handler(Looper.getMainLooper()).post {
+                        aoTerminar(false, mensagemErro)
+                    }
+                }
+            } catch (erro: Exception) {
+                erro.printStackTrace()
+                Handler(Looper.getMainLooper()).post {
+                    aoTerminar(false, "Erro de conexão: ${erro.message}")
+                }
+            }
         }
     }
 

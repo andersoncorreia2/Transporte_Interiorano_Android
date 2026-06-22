@@ -123,11 +123,21 @@ fun LoginScreen(
             var statusCorModal by remember { mutableStateOf(AzulPrincipal) }
             var carregandoModal by remember { mutableStateOf(false) }
 
+            // 🟢 NOVOS ESTADOS: Controles visuais para os olhos do modal de redefinição
+            var novaSenhaVisivel by remember { mutableStateOf(false) }
+            var confirmarSenhaVisivel by remember { mutableStateOf(false) }
+
             AlertDialog(
                 onDismissRequest = { mostrarDialogSenha = false },
                 title = { Text(text = if (!emFaseDeValidacaoOtp) "Recuperar Senha" else "Confirmar Código OTP", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    // 🟢 COMPORTAMENTO ALTERADO: Adicionado verticalScroll e rememberScrollState()
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()) // 👈 Permite rolar os campos para cima quando o teclado abrir
+                    ) {
                         if (mensagemStatusModal.isNotEmpty()) {
                             Text(text = mensagemStatusModal, color = statusCorModal, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
@@ -138,8 +148,37 @@ fun LoginScreen(
                         } else {
                             Text(text = "Insira o código de 6 dígitos enviado para o seu e-mail cadastrado.", color = Color.Gray, fontSize = 12.sp)
                             OutlinedTextField(value = codigoOtpRecup, onValueChange = { codigoOtpRecup = it.filter { char -> char.isDigit() }.take(6) }, label = { Text("Código de Verificação") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                            OutlinedTextField(value = novaSenhaRecup, onValueChange = { novaSenhaRecup = it }, label = { Text("Nova Senha") }, modifier = Modifier.fillMaxWidth(), singleLine = true, visualTransformation = PasswordVisualTransformation())
-                            OutlinedTextField(value = confirmarSenhaRecup, onValueChange = { confirmarSenhaRecup = it }, label = { Text("Confirmar Nova Senha") }, modifier = Modifier.fillMaxWidth(), singleLine = true, visualTransformation = PasswordVisualTransformation(), isError = novaSenhaRecup.isNotEmpty() && confirmarSenhaRecup.isNotEmpty() && novaSenhaRecup != confirmarSenhaRecup, supportingText = { if (novaSenhaRecup.isNotEmpty() && confirmarSenhaRecup.isNotEmpty() && novaSenhaRecup != confirmarSenhaRecup) { Text("As senhas não coincidem!", color = VermelhoErro) } })
+                            // 🟢 CAMPO ALTERADO: Nova Senha agora com Olho funcional
+                            OutlinedTextField(
+                                value = novaSenhaRecup,
+                                onValueChange = { novaSenhaRecup = it },
+                                label = { Text("Nova Senha") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                visualTransformation = if (novaSenhaVisivel) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    val image = if (novaSenhaVisivel) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                                    IconButton(onClick = { novaSenhaVisivel = !novaSenhaVisivel }) { Icon(imageVector = image, contentDescription = null) }
+                                }
+                            )
+
+                            // 🟢 CAMPO ALTERADO: Confirmar Nova Senha agora com Olho funcional
+                            OutlinedTextField(
+                                value = confirmarSenhaRecup,
+                                onValueChange = { confirmarSenhaRecup = it },
+                                label = { Text("Confirmar Nova Senha") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                visualTransformation = if (confirmarSenhaVisivel) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    val image = if (confirmarSenhaVisivel) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                                    IconButton(onClick = { confirmarSenhaVisivel = !confirmarSenhaVisivel }) { Icon(imageVector = image, contentDescription = null) }
+                                },
+                                isError = novaSenhaRecup.isNotEmpty() && confirmarSenhaRecup.isNotEmpty() && novaSenhaRecup != confirmarSenhaRecup,
+                                supportingText = { if (novaSenhaRecup.isNotEmpty() && confirmarSenhaRecup.isNotEmpty() && novaSenhaRecup != confirmarSenhaRecup) { Text("As senhas não coincidem!", color = VermelhoErro) } }
+                            )
                         }
                     }
                 },
