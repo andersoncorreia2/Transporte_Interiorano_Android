@@ -38,16 +38,16 @@ fun MinhasSolicitacoesScreen(
         BancoDeDados.buscarSolicitacoesDoServidor()
     }
 
-    val minhasCaronasOrdenadas = remember(BancoDeDados.caronas, BancoDeDados.todosOsPedidos) {
-        BancoDeDados.caronas
-            .filter { it.motorista == nomeMotoristaLogado }
-            .sortedByDescending { carona ->
-                BancoDeDados.todosOsPedidos.count { pedido ->
-                    pedido.caronaId == carona.id &&
-                            (pedido.status.lowercase().contains("pendente") || pedido.status.lowercase().contains("aceito"))
-                }
+    // 🟢 CORRIGIDO: Removeu o 'remember' bloqueador. Agora a filtragem lê os estados
+    // do mutableStateListOf em tempo real e atualiza a tela na mesma hora!
+    val minhasCaronasOrdenadas = BancoDeDados.caronas
+        .filter { it.motorista == nomeMotoristaLogado }
+        .sortedByDescending { carona ->
+            BancoDeDados.todosOsPedidos.count { pedido ->
+                pedido.caronaId == carona.id &&
+                        (pedido.status.lowercase().contains("pendente") || pedido.status.lowercase().contains("aceito"))
             }
-    }
+        }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White).padding(16.dp)) {
 
@@ -73,7 +73,7 @@ fun MinhasSolicitacoesScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
-                items(minhasCaronasOrdenadas) { carona ->
+                items(minhasCaronasOrdenadas, key = { it.id }) { carona ->
                     CartaoEventoMotorista(carona, aoExcluirComSucesso = aoClicarVoltar)
                 }
             }
@@ -111,7 +111,6 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
     }
     val vagasRestantes = totalVagas - qtdOcupadas
 
-    // 🟢 ESTADOS ADICIONADOS: Controlam o diálogo de justificativa do cancelamento geral
     var mostrarDialogoCancelamento by remember { mutableStateOf(false) }
     var motivoCancelamento by remember { mutableStateOf("") }
     val escopoStatus = rememberCoroutineScope()
@@ -152,11 +151,8 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 📝 ADICIONADO: Botão de Editar posicionado logo acima do botão de cancelamento
             Button(
-                onClick = {
-                    // Insira aqui a navegação ou o gatilho para abrir a tela de edição do evento
-                },
+                onClick = { },
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight()
@@ -173,18 +169,17 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
                 }
             }
 
-            // 🛑 CORRIGIDO: Modificado o layout do botão de cancelamento para alinhar perfeitamente e não cortar a letra "g"
             OutlinedButton(
                 onClick = { mostrarDialogoCancelamento = true },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .wrapContentHeight(), // Altera de height(36.dp) para wrapContentHeight para dar respiro vertical
+                    .wrapContentHeight(),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = VermelhoErro),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp) // Equilibra simetricamente as margens do topo e fundo
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically, // Força a centralização vertical exata de todo o conteúdo da linha
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -192,14 +187,13 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
                         text = "🛑 Cancelar Esta Viagem (Geral)",
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
-                        lineHeight = 16.sp // Permite que a perninha da letra "g" renderize de forma completa e limpa
+                        lineHeight = 16.sp
                     )
                 }
             }
         }
     }
 
-    // 🟢 INTERFACE ADICIONADA: Caixa de diálogo de cancelamento geral justificado
     if (mostrarDialogoCancelamento) {
         AlertDialog(
             onDismissRequest = { mostrarDialogoCancelamento = false },
@@ -225,11 +219,13 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
                     onClick = {
                         val justificativaFinal = if (motivoCancelamento.trim().isNotEmpty()) motivoCancelamento.trim() else "Imprevisto particular do motorista"
 
-                        // Dispara a rota de cancelamento em lote com notificações push ativas
+                        // 🟢 CORRIGIDO: Usa removeIf para expurgar localmente o item de forma compatível com lists do Compose
+                        BancoDeDados.caronas.removeIf { it.id == carona.id }
+
                         BancoDeDados.cancelarViagemGeralMotorista(carona.id, justificativaFinal) { sucesso ->
                             if (sucesso) {
                                 escopoStatus.launch {
-                                    kotlinx.coroutines.delay(800)
+                                    kotlinx.coroutines.delay(300) // Delay reduzido para resposta mais ágil
                                     BancoDeDados.buscarCaronasDoServidor()
                                     BancoDeDados.buscarSolicitacoesDoServidor()
                                 }

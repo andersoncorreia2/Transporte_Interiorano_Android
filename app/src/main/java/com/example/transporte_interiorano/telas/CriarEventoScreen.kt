@@ -1,10 +1,10 @@
 package com.example.transporte_interiorano.telas
 
-import android.app.DatePickerDialog // 🟢 INCLUÍDO: Ferramenta do Calendário
-import android.app.TimePickerDialog // 🟢 INCLUÍDO: Ferramenta do Relógio
-import java.util.Calendar           // 🟢 INCLUÍDO: Sabe a data de hoje
-import androidx.compose.ui.platform.LocalContext // 🟢 INCLUÍDO: Permite abrir janelas na tela
-import androidx.compose.foundation.clickable     // 🟢 INCLUÍDO: Permite clicar em coisas
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import java.util.Calendar
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.transporte_interiorano.BancoDeDados // 🟢 IMPORTADO
 import com.example.transporte_interiorano.ui.theme.*
 
 @Composable
@@ -30,7 +31,6 @@ fun CriarEventoScreen(
     aoClicarSair: () -> Unit,
     cpfLogado: String
 ) {
-    // 🟢 INCLUÍDO: Ferramentas essenciais para o Calendário funcionar na tela
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
@@ -39,10 +39,8 @@ fun CriarEventoScreen(
     var origem by remember { mutableStateOf("") }
     var cidadeDestino by remember { mutableStateOf("") }
     var destino by remember { mutableStateOf("") }
-    var horario by remember { mutableStateOf("") } // Agora vai guardar "DD/MM/AAAA às HH:MM"
+    var horario by remember { mutableStateOf("") }
     var vagas by remember { mutableStateOf("") }
-
-    // 🔴 EXCLUÍDO: A "mascaraHorario" foi totalmente removida daqui porque não precisamos mais digitar!
 
     Column(
         modifier = Modifier
@@ -112,30 +110,25 @@ fun CriarEventoScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // 🔄 SUBSTITUIÇÃO: A Mágica do Calendário começa aqui
             Box(modifier = Modifier.weight(1f)) {
                 OutlinedTextField(
                     value = horario,
                     onValueChange = { },
-                    readOnly = true, // Bloqueia o teclado, não deixa digitar letras
+                    readOnly = true,
                     label = { Text("Data e Hora") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                // Caixa invisível que fica por cima e recebe o clique do dedo
                 Box(
                     modifier = Modifier
                         .matchParentSize()
                         .background(Color.Transparent)
                         .clickable {
-                            // 1. Abre a tela de escolher o DIA
                             DatePickerDialog(
                                 context,
                                 { _, ano, mes, dia ->
-                                    // 2. Quando o motorista escolhe o dia, abre a tela de HORA
                                     TimePickerDialog(
                                         context,
                                         { _, hora, minuto ->
-                                            // 3. Junta tudo num texto bonitinho!
                                             val diaFormatado = dia.toString().padStart(2, '0')
                                             val mesFormatado = (mes + 1).toString().padStart(2, '0')
                                             val horaFormatada = hora.toString().padStart(2, '0')
@@ -145,7 +138,7 @@ fun CriarEventoScreen(
                                         },
                                         calendar.get(Calendar.HOUR_OF_DAY),
                                         calendar.get(Calendar.MINUTE),
-                                        true // Usa o formato de 24 horas (ex: 19:00)
+                                        true
                                     ).show()
                                 },
                                 calendar.get(Calendar.YEAR),
@@ -173,17 +166,19 @@ fun CriarEventoScreen(
 
         Button(
             onClick = {
-                // 🔴 EXCLUÍDO: O cortador de horário saiu daqui, enviamos o texto pronto
                 aoPublicarEvento(
                     nomeEvento,
                     cidadeOrigem,
                     origem,
                     cidadeDestino,
                     destino,
-                    horario, // 🟢 INCLUÍDO: Enviando o texto completão para o banco de dados!
+                    horario,
                     vagas,
                     cpfLogado
                 )
+                // 🟢 ADICIONADO: Força o gatilho de sincronização imediata no ato da publicação
+                BancoDeDados.buscarCaronasDoServidor()
+                BancoDeDados.buscarSolicitacoesDoServidor()
             },
             colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
             modifier = Modifier.fillMaxWidth().height(48.dp),
