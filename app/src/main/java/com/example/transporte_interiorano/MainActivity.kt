@@ -9,6 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.Button
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable // 🟢 ADICIONADO PARA PERSISTÊNCIA DE TELA
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -64,29 +65,30 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
 
-                    var telaAtual by remember { mutableStateOf("splash") }
-                    var erroDeCadastro by remember { mutableStateOf("") }
-                    var mensagemLogin by remember { mutableStateOf("") }
+                    // 🟢 MODIFICADO: Agora usa rememberSaveable para não perder a string da tela ao sair do aplicativo
+                    var telaAtual by rememberSaveable { mutableStateOf("splash") }
+                    var erroDeCadastro by rememberSaveable { mutableStateOf("") }
+                    var mensagemLogin by rememberSaveable { mutableStateOf("") }
 
-                    // --- VARIÁVEIS DE ESTADO DO USUÁRIO ---
-                    var nomeLogado by remember { mutableStateOf("") }
-                    var cpfLogado by remember { mutableStateOf("") }
-                    var emailLogado by remember { mutableStateOf("") }
-                    var telefoneLogado by remember { mutableStateOf("") }
-                    var veiculoLogado by remember { mutableStateOf("") }
-                    var placaLogada by remember { mutableStateOf("") }
-                    var vagasLogada by remember { mutableStateOf("") }
-                    var ruaLogada by remember { mutableStateOf("") }
-                    var numeroLogado by remember { mutableStateOf("") }
-                    var complementoLogado by remember { mutableStateOf("") }
-                    var bairroLogada by remember { mutableStateOf("") }
-                    var cidadeLogada by remember { mutableStateOf("") }
-                    var estadoLogado by remember { mutableStateOf("") }
-                    var cepLogado by remember { mutableStateOf("") }
-                    var usuarioLogado by remember { mutableStateOf("") }
+                    // --- VARIÁVEIS DE ESTADO DO USUÁRIO SALVÁVEIS EM BUNDLE ---
+                    var nomeLogado by rememberSaveable { mutableStateOf("") }
+                    var cpfLogado by rememberSaveable { mutableStateOf("") }
+                    var emailLogado by rememberSaveable { mutableStateOf("") }
+                    var telefoneLogado by rememberSaveable { mutableStateOf("") }
+                    var veiculoLogado by rememberSaveable { mutableStateOf("") }
+                    var placaLogada by rememberSaveable { mutableStateOf("") }
+                    var vagasLogada by rememberSaveable { mutableStateOf("") }
+                    var ruaLogada by rememberSaveable { mutableStateOf("") }
+                    var numeroLogado by rememberSaveable { mutableStateOf("") }
+                    var complementoLogado by rememberSaveable { mutableStateOf("") }
+                    var bairroLogada by rememberSaveable { mutableStateOf("") }
+                    var cidadeLogada by rememberSaveable { mutableStateOf("") }
+                    var estadoLogado by rememberSaveable { mutableStateOf("") }
+                    var cepLogado by rememberSaveable { mutableStateOf("") }
+                    var usuarioLogado by rememberSaveable { mutableStateOf("") }
 
-                    var corridasRealizadas by remember { mutableStateOf(0) }
-                    var passageirosConduzidos by remember { mutableStateOf(0) }
+                    var corridasRealizadas by rememberSaveable { mutableStateOf(0) }
+                    var passageirosConduzidos by rememberSaveable { mutableStateOf(0) }
                     // ------------------------------------------
 
                     LaunchedEffect(telaAtual) {
@@ -102,7 +104,14 @@ class MainActivity : ComponentActivity() {
 
                     when (telaAtual) {
                         "splash" -> SplashScreen(
-                            onTimeout = { telaAtual = "login" }
+                            onTimeout = {
+                                // 🟢 SE JÁ TIVER UM USUÁRIO NA MEMÓRIA SALVA, PULA DIRETO A TELA DE LOGIN
+                                telaAtual = if (cpfLogado.isNotEmpty()) {
+                                    if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                                } else {
+                                    "login"
+                                }
+                            }
                         )
 
                         "login" -> LoginScreen(
@@ -152,7 +161,7 @@ class MainActivity : ComponentActivity() {
                                 mensagemLogin = ""
                                 telaAtual = "cadastro"
                             },
-                            mensagemErro = mensagemLogin // 🟢 CORRIGIDO AQUI!
+                            mensagemErro = mensagemLogin
                         )
 
                         "cadastro" -> CadastroScreen(
@@ -177,7 +186,7 @@ class MainActivity : ComponentActivity() {
                                 erroDeCadastro = ""
                                 telaAtual = "login"
                             },
-                            mensagemErro = erroDeCadastro // 🟢 CORRIGIDO AQUI TAMBÉM!
+                            mensagemErro = erroDeCadastro
                         )
 
                         "criarEvento" -> CriarEventoScreen(
@@ -197,9 +206,11 @@ class MainActivity : ComponentActivity() {
                                 telaAtual = "detalhes"
                             },
                             aoClicarVoltar = {
+                                // 🟢 Limpa os estados salvos explicitamente quando o usuário escolhe Sair voluntariamente
                                 veiculoLogado = ""
                                 nomeLogado = ""
                                 emailLogado = ""
+                                cpfLogado = ""
                                 telaAtual = "login"
                             },
                             aoClicarPerfil = { telaAtual = "perfil" },
@@ -223,36 +234,6 @@ class MainActivity : ComponentActivity() {
                                 passageirosIniciais = passageirosConduzidos,
                                 aoConfirmarCarona = {
                                     if (caronaSelecionada != null) {
-                                        // 1. Decrementa o contador visual na hora
-                                        //val idAlvo = caronaSelecionada!!.id
-                                        //val index = BancoDeDados.caronas.indexOfFirst { it.id == idAlvo }
-                                        //if (index != -1) {
-                                            //val caronaAtual = BancoDeDados.caronas[index]
-                                            //val vagasNum = caronaAtual.vagas.toIntOrNull() ?: 0
-                                            //if (vagasNum > 0) {
-                                                //BancoDeDados.caronas[index] = caronaAtual.copy(
-                                                    //vagas = (vagasNum - 1).toString()
-                                                //)
-                                            //}
-                                        //}
-
-                                        // 2. Insere o pedido pendente local para ativar o botão Cancelar na ListaCaronasScreen
-                                        //BancoDeDados.todosOsPedidos.add(
-                                            //Pedido(
-                                                //idReal = 999, // provisório até o radar atualizar
-                                                //caronaId = idAlvo,
-                                                //passageiro = nomeLogado,
-                                                //passageiroCpf = cpfLogado,
-                                                //status = "Pendente",
-                                                //evento_nome = caronaSelecionada!!.evento_nome,
-                                                //cidade_origem = caronaSelecionada!!.cidade_origem,
-                                                //cidade_destino = caronaSelecionada!!.cidade_destino,
-                                                //horario = caronaSelecionada!!.horario
-                                            //)
-                                        //)
-
-                                        // 🟢 APENAS ADICIONA O PEDIDO PENDENTE LOCAL:
-                                        // A ListaCaronasScreen fará a matemática automática (4 - 1 = 3)
                                         BancoDeDados.todosOsPedidos.add(
                                             Pedido(
                                                 idReal = 9999,
@@ -263,7 +244,6 @@ class MainActivity : ComponentActivity() {
                                             )
                                         )
 
-                                        // 3. Dispara o envio físico para o DBeaver
                                         BancoDeDados.fazerSolicitacao(
                                             carona = caronaSelecionada!!,
                                             nomePassageiro = nomeLogado,
@@ -272,7 +252,7 @@ class MainActivity : ComponentActivity() {
 
                                         escopoCorrotina.launch {
                                             try {
-                                                delay(1000) // 1 segundo de folga para o Render persistir no Postgres
+                                                delay(1000)
                                                 BancoDeDados.buscarCaronasDoServidor()
                                                 BancoDeDados.buscarSolicitacoesDoServidor()
                                             } catch (e: Exception) {}
@@ -289,9 +269,11 @@ class MainActivity : ComponentActivity() {
                             nomeMotoristaLogado = nomeLogado,
                             aoClicarPerfil = { telaAtual = "perfil" },
                             aoClicarVoltar = {
+                                // 🟢 Limpa os estados salvos explicitamente quando o usuário escolhe Sair voluntariamente
                                 veiculoLogado = ""
                                 nomeLogado = ""
                                 emailLogado = ""
+                                cpfLogado = ""
                                 telaAtual = "login"
                             },
                             aoClicarNovoEvento = { telaAtual = "criarEvento" },
@@ -315,6 +297,7 @@ class MainActivity : ComponentActivity() {
                                     nomeLogado = ""
                                     emailLogado = ""
                                     usuarioLogado = ""
+                                    cpfLogado = ""
                                     telaAtual = "login"
                                 },
                                 aoClicarVoltar = {
@@ -326,6 +309,7 @@ class MainActivity : ComponentActivity() {
                                     nomeLogado = ""
                                     emailLogado = ""
                                     usuarioLogado = ""
+                                    cpfLogado = ""
                                     telaAtual = "login"
                                 },
                                 aoClicarEditar = { telaAtual = "editarPerfil" }
@@ -333,9 +317,6 @@ class MainActivity : ComponentActivity() {
                         }
 
                         "editarPerfil" -> {
-                            // 🟢 ADICIONADO: Captura o escopo de corrotina para garantir a navegação segura de UI
-                            //val escopoMainActivity = rememberCoroutineScope()
-
                             val usuarioAtual = Usuario(
                                 nome = nomeLogado, cpf = cpfLogado, email = emailLogado, telefone = telefoneLogado,
                                 veiculo = veiculoLogado, placa = placaLogada, vagas = vagasLogada,
@@ -346,7 +327,6 @@ class MainActivity : ComponentActivity() {
                             EditarPerfilScreen(
                                 usuarioAtual = usuarioAtual,
                                 aoSalvar = { usuarioAtualizado ->
-                                    // 1. Atualiza as variáveis de estado local da sessão
                                     nomeLogado = usuarioAtualizado.nome
                                     emailLogado = usuarioAtualizado.email
                                     telefoneLogado = usuarioAtualizado.telefone
@@ -362,12 +342,10 @@ class MainActivity : ComponentActivity() {
                                     cepLogado = usuarioAtualizado.cep
                                     usuarioLogado = usuarioAtualizado.usuario
 
-                                    // 🟢 FIX CRÍTICO: Mantém o nome do usuário/username intacto para não quebrar a sessão
                                     if (usuarioAtualizado.usuario.isNotEmpty()) {
                                         usuarioLogado = usuarioAtualizado.usuario
                                     }
 
-                                    // 2. 🟢 REDIRECIONAMENTO SÍNCRONO: Executa a troca de tela na Main UI Thread de forma limpa
                                     this@MainActivity.runOnUiThread {
                                         Toast.makeText(this@MainActivity, "Alteração Realizada com Sucesso!", Toast.LENGTH_SHORT).show()
                                         telaAtual = "perfil"

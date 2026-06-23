@@ -74,7 +74,6 @@ fun MinhasSolicitacoesScreen(
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(minhasCaronasOrdenadas) { carona ->
-                    // Passa a ação de voltar/atualizar para dentro do cartão
                     CartaoEventoMotorista(carona, aoExcluirComSucesso = aoClicarVoltar)
                 }
             }
@@ -103,7 +102,7 @@ fun MinhasSolicitacoesScreen(
 }
 
 @Composable
-fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) { // 🟢 CORRIGIDO: Assinatura agora aceita o parâmetro de callback!
+fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
     val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == carona.id }
     val totalVagas = carona.vagas.toIntOrNull() ?: 0
     val qtdOcupadas = pedidosDaCarona.count {
@@ -111,6 +110,11 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) { // 
         status.contains("aceito") || status.contains("pendente")
     }
     val vagasRestantes = totalVagas - qtdOcupadas
+
+    // 🟢 ESTADOS ADICIONADOS: Controlam o diálogo de justificativa do cancelamento geral
+    var mostrarDialogoCancelamento by remember { mutableStateOf(false) }
+    var motivoCancelamento by remember { mutableStateOf("") }
+    val escopoStatus = rememberCoroutineScope()
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp).border(1.dp, Color.LightGray, RoundedCornerShape(12.dp)),
@@ -148,26 +152,97 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) { // 
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 🟢 ADICIONADO: Captura o escopo de corrotina para gerenciar o tempo de resposta da UI
-            val escopoStatus = rememberCoroutineScope()
-
-            OutlinedButton(
+            // 📝 ADICIONADO: Botão de Editar posicionado logo acima do botão de cancelamento
+            Button(
                 onClick = {
-                    // 1. Executa a remoção física no banco de dados
-                    BancoDeDados.excluirCaronaDoServidor(carona.id)
-
-                    // 2. 🟢 CORRIGIDO: Aguarda o término da deleção na nuvem para atualizar o ecrã na hora
-                    escopoStatus.launch {
-                        kotlinx.coroutines.delay(800)
-                        BancoDeDados.buscarCaronasDoServidor()
-                        BancoDeDados.buscarSolicitacoesDoServidor()
-                    }
+                    // Insira aqui a navegação ou o gatilho para abrir a tela de edição do evento
                 },
-                modifier = Modifier.fillMaxWidth().height(36.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .padding(bottom = 8.dp),
                 shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = VermelhoErro)
-            ) { Text("🗑️ Excluir Este Evento", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text("✏️ Editar Informações da Viagem", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
+
+            // 🛑 CORRIGIDO: Modificado o layout do botão de cancelamento para alinhar perfeitamente e não cortar a letra "g"
+            OutlinedButton(
+                onClick = { mostrarDialogoCancelamento = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(), // Altera de height(36.dp) para wrapContentHeight para dar respiro vertical
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = VermelhoErro),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp) // Equilibra simetricamente as margens do topo e fundo
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, // Força a centralização vertical exata de todo o conteúdo da linha
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "🛑 Cancelar Esta Viagem (Geral)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp // Permite que a perninha da letra "g" renderize de forma completa e limpa
+                    )
+                }
+            }
         }
+    }
+
+    // 🟢 INTERFACE ADICIONADA: Caixa de diálogo de cancelamento geral justificado
+    if (mostrarDialogoCancelamento) {
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoCancelamento = false },
+            title = { Text("Justificativa do Cancelamento", fontWeight = FontWeight.Bold, color = AzulPrincipal) },
+            text = {
+                Column {
+                    Text(
+                        "Informe o motivo de força maior. Todos os passageiros serão notificados e ressarcidos automaticamente.",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp))
+                    TextField(
+                        value = motivoCancelamento,
+                        onValueChange = { motivoCancelamento = it },
+                        label = { Text("Ex: Carro quebrou / Problema de saúde") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = VermelhoErro),
+                    onClick = {
+                        val justificativaFinal = if (motivoCancelamento.trim().isNotEmpty()) motivoCancelamento.trim() else "Imprevisto particular do motorista"
+
+                        // Dispara a rota de cancelamento em lote com notificações push ativas
+                        BancoDeDados.cancelarViagemGeralMotorista(carona.id, justificativaFinal) { sucesso ->
+                            if (sucesso) {
+                                escopoStatus.launch {
+                                    kotlinx.coroutines.delay(800)
+                                    BancoDeDados.buscarCaronasDoServidor()
+                                    BancoDeDados.buscarSolicitacoesDoServidor()
+                                }
+                            }
+                        }
+                        mostrarDialogoCancelamento = false
+                    }
+                ) { Text("Confirmar Cancelamento", color = Color.White) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { mostrarDialogoCancelamento = false }) { Text("Voltar") }
+            }
+        )
     }
 }
 

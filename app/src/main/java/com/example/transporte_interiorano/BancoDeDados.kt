@@ -53,10 +53,22 @@ object BancoDeDados {
     var temEventoAtivo: Boolean = false
     var tokenSessao: String = ""
 
-    // 🟢 OTIMIZADO: Criada uma função síncrona interna para ser chamada de dentro das threads de rede de forma segura
-    private fun carregarDadosSincrono() {
+    // 🟢 Guardamos o CPF do usuário logado localmente para o Radar usar em background
+    var cpfUsuarioLogado: String = ""
+
+    // 🟢 MODIFICADO: Agora recebe o cpfUsuario para injetar o filtro na URL do backend
+    private fun carregarDadosSincrono(cpfUsuario: String) {
+        if (cpfUsuario.isEmpty()) return
         try {
-            val respostaCaronas = URL("https://transporte-interiorano-backend.onrender.com/caronas").readText()
+            // 🟢 Injeta o parâmetro do CPF na rota de caronas conforme o novo app.py
+            val respostaCaronas = URL(
+                "https://transporte-interiorano-backend.onrender.com/caronas/${
+                    java.net.URLEncoder.encode(
+                        cpfUsuario,
+                        "UTF-8"
+                    )
+                }"
+            ).readText()
             val jsonArrayCaronas = JSONArray(respostaCaronas)
             val novaListaCaronas = mutableListOf<Carona>()
             for (i in 0 until jsonArrayCaronas.length()) {
@@ -80,7 +92,8 @@ object BancoDeDados {
                 )
             }
 
-            val respostaSolicitacoes = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").readText()
+            val respostaSolicitacoes =
+                URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").readText()
             val jsonArraySolicitacoes = JSONArray(respostaSolicitacoes)
             val novaListaPedidos = mutableListOf<Pedido>()
             for (i in 0 until jsonArraySolicitacoes.length()) {
@@ -103,7 +116,6 @@ object BancoDeDados {
                 }
             }
 
-            // Atualiza as listas atômicas do Compose de uma vez só na thread principal implicitamente
             caronas.clear()
             caronas.addAll(novaListaCaronas)
             todosOsPedidos.clear()
@@ -113,15 +125,17 @@ object BancoDeDados {
         }
     }
 
+    // 🟢 MODIFICADO: Encaminha o CPF logado
     fun buscarCaronasDoServidor() {
         thread {
-            carregarDadosSincrono()
+            carregarDadosSincrono(cpfUsuarioLogado)
         }
     }
 
+    // 🟢 MODIFICADO: Encaminha o CPF logado
     fun buscarSolicitacoesDoServidor() {
         thread {
-            carregarDadosSincrono()
+            carregarDadosSincrono(cpfUsuarioLogado)
         }
     }
 
@@ -146,7 +160,7 @@ object BancoDeDados {
 
                 if (conexao.responseCode == 200 || conexao.responseCode == 201) {
                     android.util.Log.d("SOLICITACAO_OK", "Pedido gravado com sucesso no Postgres!")
-                    carregarDadosSincrono()
+                    carregarDadosSincrono(cpfUsuarioLogado)
                 }
             } catch (erro: Exception) {
                 erro.printStackTrace()
@@ -154,10 +168,21 @@ object BancoDeDados {
         }
     }
 
-    fun enviarCaronaParaServidor(nomeEvento: String, cidadeOrigem: String, enderecoOrigem: String, cidadeDestino: String, enderecoDestino: String, horario: String, vagas: String, motorista: String, motoristaCpf: String) {
+    fun enviarCaronaParaServidor(
+        nomeEvento: String,
+        cidadeOrigem: String,
+        enderecoOrigem: String,
+        cidadeDestino: String,
+        enderecoDestino: String,
+        horario: String,
+        vagas: String,
+        motorista: String,
+        motoristaCpf: String
+    ) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/caronas").openConnection() as HttpURLConnection
+                val conexao =
+                    URL("https://transporte-interiorano-backend.onrender.com/caronas").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
@@ -178,9 +203,8 @@ object BancoDeDados {
                 escritor.write(json.toString())
                 escritor.flush()
 
-                // 🟢 CORRIGIDO: Espera o servidor cadastrar antes de puxar a lista atualizada
                 if (conexao.responseCode == 201) {
-                    carregarDadosSincrono()
+                    carregarDadosSincrono(cpfUsuarioLogado)
                 }
             } catch (erro: Exception) {
                 erro.printStackTrace()
@@ -192,19 +216,31 @@ object BancoDeDados {
         todosOsPedidos.removeAll { it.idReal == pedidoIdReal }
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes/$pedidoIdReal").openConnection() as HttpURLConnection
+                val conexao =
+                    URL("https://transporte-interiorano-backend.onrender.com/solicitacoes/$pedidoIdReal").openConnection() as HttpURLConnection
                 conexao.requestMethod = "DELETE"
                 if (conexao.responseCode == 200) {
-                    carregarDadosSincrono()
+                    carregarDadosSincrono(cpfUsuarioLogado)
                 }
-            } catch (erro: Exception) {}
+            } catch (erro: Exception) {
+            }
         }
     }
 
     fun responderPedidoMotorista(pedidoIdReal: Int, statusDecidido: String) {
+        // 🟢 PASSO 1: Atualiza imediatamente a interface local na Main Thread para dar velocidade
+        Handler(Looper.getMainLooper()).post {
+            val index = todosOsPedidos.indexOfFirst { it.idReal == pedidoIdReal }
+            if (index != -1) {
+                val pedidoAntigo = todosOsPedidos[index]
+                todosOsPedidos[index] = pedidoAntigo.copy(status = statusDecidido)
+            }
+        }
+
         thread {
             try {
-                val url = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes/$pedidoIdReal")
+                val url =
+                    URL("https://transporte-interiorano-backend.onrender.com/solicitacoes/$pedidoIdReal")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "PUT"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -217,7 +253,12 @@ object BancoDeDados {
 
                 if (conexao.responseCode == 200 || conexao.responseCode == 201) {
                     android.util.Log.d("STATUS_OK", "Pedido respondido com sucesso!")
-                    carregarDadosSincrono()
+                    // 🟢 PASSO 2: Força o recarregamento síncrono também dentro da Thread de interface de forma segura
+                    Handler(Looper.getMainLooper()).post {
+                        thread {
+                            carregarDadosSincrono(cpfUsuarioLogado)
+                        }
+                    }
                 }
             } catch (erro: Exception) {
                 erro.printStackTrace()
@@ -226,21 +267,23 @@ object BancoDeDados {
     }
 
     fun excluirCaronaDoServidor(caronaId: Int) {
-        // Remove localmente primeiro para feedback instantâneo
         caronas.removeAll { it.id == caronaId }
         todosOsPedidos.removeAll { it.caronaId == caronaId }
         temEventoAtivo = false
         thread {
             try {
-                val url = URL("https://transporte-interiorano-backend.onrender.com/caronas/$caronaId")
+                val url =
+                    URL("https://transporte-interiorano-backend.onrender.com/caronas/$caronaId")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "DELETE"
-                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty(
+                    "Content-Type",
+                    "application/json; charset=utf-8"
+                )
 
-                // 🟢 CORRIGIDO: Força a requisição de DELETE síncrona e reconstrói o estado na hora
                 if (conexao.responseCode == 200) {
                     android.util.Log.d("DELETE_OK", "Evento excluído com sucesso!")
-                    carregarDadosSincrono()
+                    carregarDadosSincrono(cpfUsuarioLogado)
                 }
             } catch (erro: Exception) {
                 erro.printStackTrace()
@@ -248,12 +291,21 @@ object BancoDeDados {
         }
     }
 
-    fun finalizarSolicitacaoNuvem(solicitacaoId: Int, motorista: String, passageiroCpf: String, caronaId: Int) {
+    fun finalizarSolicitacaoNuvem(
+        solicitacaoId: Int,
+        motorista: String,
+        passageiroCpf: String,
+        caronaId: Int
+    ) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/finalizar_solicitacao").openConnection() as HttpURLConnection
+                val conexao =
+                    URL("https://transporte-interiorano-backend.onrender.com/finalizar_solicitacao").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty(
+                    "Content-Type",
+                    "application/json; charset=utf-8"
+                )
                 conexao.doOutput = true
                 val json = JSONObject().apply {
                     put("solicitacao_id", solicitacaoId)
@@ -265,27 +317,40 @@ object BancoDeDados {
                 escritor.write(json.toString())
                 escritor.flush()
                 if (conexao.responseCode == 200) {
-                    carregarDadosSincrono()
+                    carregarDadosSincrono(cpfUsuarioLogado)
                 }
-            } catch (e: Exception) { e.printStackTrace() }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
+    // 🟢 MODIFICADO: O radar de segundo plano repassa o CPF salvo em background continuamente
     fun ligarRadar() {
         thread {
             while (true) {
-                carregarDadosSincrono()
+                if (cpfUsuarioLogado.isNotEmpty()) {
+                    carregarDadosSincrono(cpfUsuarioLogado)
+                }
                 Thread.sleep(5000)
             }
         }
     }
 
-    fun fazerLoginNuvem(usuarioRecebido: String, senhaRecebida: String, aoTerminar: (Usuario?, String) -> Unit) {
+    fun fazerLoginNuvem(
+        usuarioRecebido: String,
+        senhaRecebida: String,
+        aoTerminar: (Usuario?, String) -> Unit
+    ) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/login").openConnection() as HttpURLConnection
+                val conexao =
+                    URL("https://transporte-interiorano-backend.onrender.com/login").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty(
+                    "Content-Type",
+                    "application/json; charset=utf-8"
+                )
                 conexao.doOutput = true
                 val json = """{"usuario": "$usuarioRecebido", "senha": "$senhaRecebida"}"""
                 val escritor = OutputStreamWriter(conexao.outputStream)
@@ -315,20 +380,48 @@ object BancoDeDados {
                         cep = resUsuario.optString("cep", ""),
                         usuario = resUsuario.optString("usuario", "")
                     )
+
+                    // 🟢 REGISTRO CRÍTICO: No login bem-sucedido, memoriza o CPF para uso automático das chamadas subsequentes
+                    cpfUsuarioLogado = usuarioLogado.cpf
+
                     aoTerminar(usuarioLogado, "")
                 } else {
                     aoTerminar(null, "Negado")
                 }
-            } catch (erro: Exception) { aoTerminar(null, "Erro") }
+            } catch (erro: Exception) {
+                aoTerminar(null, "Erro")
+            }
         }
     }
 
-    fun cadastrarUsuarioNuvem(nome: String, cpf: String, telefone: String, email: String, senha: String, veiculo: String, placa: String, vagas: String, rua: String, numero: String, complemento: String, bairro: String, cidade: String, estado: String, cep: String, username: String, aoTerminar: (Boolean, String) -> Unit) {
+    fun cadastrarUsuarioNuvem(
+        nome: String,
+        cpf: String,
+        telefone: String,
+        email: String,
+        senha: String,
+        veiculo: String,
+        placa: String,
+        vagas: String,
+        rua: String,
+        numero: String,
+        complemento: String,
+        bairro: String,
+        cidade: String,
+        estado: String,
+        cep: String,
+        username: String,
+        aoTerminar: (Boolean, String) -> Unit
+    ) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/usuarios").openConnection() as HttpURLConnection
+                val conexao =
+                    URL("https://transporte-interiorano-backend.onrender.com/usuarios").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty(
+                    "Content-Type",
+                    "application/json; charset=utf-8"
+                )
                 conexao.doOutput = true
 
                 val json = """{
@@ -346,111 +439,169 @@ object BancoDeDados {
                     400 -> aoTerminar(false, "Usuário ou e-mail já existe")
                     else -> aoTerminar(false, "Erro")
                 }
-            } catch (erro: Exception) { aoTerminar(false, "Falha") }
+            } catch (erro: Exception) {
+                aoTerminar(false, "Falha")
+            }
         }
     }
 
-    fun verificarDisponibilidadeUsuario(username: String, aoResultar: (Boolean, List<String>) -> Unit) {
+    fun verificarDisponibilidadeUsuario(
+        username: String,
+        aoResultar: (Boolean, List<String>) -> Unit
+    ) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/verificar_usuario/${username.trim()}").openConnection() as HttpURLConnection
+                val conexao =
+                    URL("https://transporte-interiorano-backend.onrender.com/verificar_usuario/${username.trim()}").openConnection() as HttpURLConnection
                 conexao.requestMethod = "GET"
                 if (conexao.responseCode == 200) {
                     val res = JSONObject(conexao.inputStream.bufferedReader().readText())
                     val disp = res.getBoolean("disponivel")
                     val arr = res.getJSONArray("sugestoes")
                     val list = mutableListOf<String>()
-                    for (i in 0 until arr.length()) { list.add(arr.getString(i)) }
+                    for (i in 0 until arr.length()) {
+                        list.add(arr.getString(i))
+                    }
                     aoResultar(disp, list)
                 }
-            } catch (e: Exception) { aoResultar(false, emptyList()) }
+            } catch (e: Exception) {
+                aoResultar(false, emptyList())
+            }
         }
     }
 
     fun verificarCpfExistente(cpf: String, aoDescobrir: (Boolean) -> Unit) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/verificar_cpf/$cpf").openConnection() as HttpURLConnection
+                val conexao =
+                    URL("https://transporte-interiorano-backend.onrender.com/verificar_cpf/$cpf").openConnection() as HttpURLConnection
                 conexao.requestMethod = "GET"
                 if (conexao.responseCode == 200) {
                     val res = JSONObject(conexao.inputStream.bufferedReader().readText())
                     aoDescobrir(res.getBoolean("existe"))
                 }
-            } catch (erro: Exception) {}
+            } catch (erro: Exception) {
+            }
         }
     }
 
     fun excluirUsuario(email: String) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/usuarios/${java.net.URLEncoder.encode(email, "UTF-8")}").openConnection() as HttpURLConnection
+                val conexao = URL(
+                    "https://transporte-interiorano-backend.onrender.com/usuarios/${
+                        java.net.URLEncoder.encode(
+                            email,
+                            "UTF-8"
+                        )
+                    }"
+                ).openConnection() as HttpURLConnection
                 conexao.requestMethod = "DELETE"
                 conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
                 conexao.responseCode
-            } catch (erro: Exception) {}
+            } catch (erro: Exception) {
+            }
         }
     }
 
     fun buscarMétricasPorCpf(cpf: String, aoTerminar: (Int, Int) -> Unit) {
         thread {
             try {
-                val resposta = URL("https://transporte-interiorano-backend.onrender.com/usuarios_por_cpf/$cpf").readText()
+                val resposta =
+                    URL("https://transporte-interiorano-backend.onrender.com/usuarios_por_cpf/$cpf").readText()
                 val json = JSONObject(resposta)
-                aoTerminar(json.getInt("corridas_realizadas"), json.getInt("passageiros_conduzidos"))
-            } catch (e: Exception) { aoTerminar(0, 0) }
+                aoTerminar(
+                    json.getInt("corridas_realizadas"),
+                    json.getInt("passageiros_conduzidos")
+                )
+            } catch (e: Exception) {
+                aoTerminar(0, 0)
+            }
         }
     }
 
     fun buscarHistoricoPassageiroPorCpf(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
         thread {
             try {
-                val resposta = URL("https://transporte-interiorano-backend.onrender.com/historico_cpf/${java.net.URLEncoder.encode(cpf, "UTF-8")}").readText()
+                val resposta = URL(
+                    "https://transporte-interiorano-backend.onrender.com/historico_cpf/${
+                        java.net.URLEncoder.encode(
+                            cpf,
+                            "UTF-8"
+                        )
+                    }"
+                ).readText()
                 val jsonArray = JSONArray(resposta)
                 val listaHistorico = mutableListOf<Pedido>()
                 for (i in 0 until jsonArray.length()) {
                     val item = jsonArray.getJSONObject(i)
                     listaHistorico.add(
                         Pedido(
-                            idReal = item.getInt("id"), caronaId = item.getInt("carona_id"), passageiro = item.getString("passageiro"),
-                            passageiroCpf = item.optString("passageiro_cpf", ""), status = item.getString("status"),
-                            evento_nome = item.optString("evento_nome", ""), cidade_origem = item.optString("cidade_origem", ""),
-                            cidade_destino = item.optString("cidade_destino", ""), horario = item.optString("horario", "")
+                            idReal = item.getInt("id"),
+                            caronaId = item.getInt("carona_id"),
+                            passageiro = item.getString("passageiro"),
+                            passageiroCpf = item.optString("passageiro_cpf", ""),
+                            status = item.getString("status"),
+                            evento_nome = item.optString("evento_nome", ""),
+                            cidade_origem = item.optString("cidade_origem", ""),
+                            cidade_destino = item.optString("cidade_destino", ""),
+                            horario = item.optString("horario", "")
                         )
                     )
                 }
                 aoReceber(listaHistorico)
-            } catch (e: Exception) { aoReceber(emptyList()) }
+            } catch (e: Exception) {
+                aoReceber(emptyList())
+            }
         }
     }
 
     fun buscarHistoricoMotoristaPorCpf(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
         thread {
             try {
-                val resposta = URL("https://transporte-interiorano-backend.onrender.com/historico_motorista_cpf/${java.net.URLEncoder.encode(cpf, "UTF-8")}").readText()
+                val resposta = URL(
+                    "https://transporte-interiorano-backend.onrender.com/historico_motorista_cpf/${
+                        java.net.URLEncoder.encode(
+                            cpf,
+                            "UTF-8"
+                        )
+                    }"
+                ).readText()
                 val jsonArray = JSONArray(resposta)
                 val listaHistorico = mutableListOf<Pedido>()
                 for (i in 0 until jsonArray.length()) {
                     val item = jsonArray.getJSONObject(i)
                     listaHistorico.add(
                         Pedido(
-                            idReal = item.getInt("id"), caronaId = item.getInt("carona_id"), passageiro = item.getString("passageiro"),
-                            passageiroCpf = item.optString("passageiro_cpf", ""), status = item.getString("status"),
-                            evento_nome = item.optString("evento_nome", ""), cidade_origem = item.optString("cidade_origem", ""),
-                            cidade_destino = item.optString("cidade_destino", ""), horario = item.optString("horario", "")
+                            idReal = item.getInt("id"),
+                            caronaId = item.getInt("carona_id"),
+                            passageiro = item.getString("passageiro"),
+                            passageiroCpf = item.optString("passageiro_cpf", ""),
+                            status = item.getString("status"),
+                            evento_nome = item.optString("evento_nome", ""),
+                            cidade_origem = item.optString("cidade_origem", ""),
+                            cidade_destino = item.optString("cidade_destino", ""),
+                            horario = item.optString("horario", "")
                         )
                     )
                 }
                 aoReceber(listaHistorico)
-            } catch (e: Exception) { aoReceber(emptyList()) }
+            } catch (e: Exception) {
+                aoReceber(emptyList())
+            }
         }
     }
 
     fun atualizarUsuarioNuvem(usuario: Usuario, aoTerminar: (Boolean) -> Unit) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/usuarios/${usuario.cpf}").openConnection() as HttpURLConnection
+                val conexao =
+                    URL("https://transporte-interiorano-backend.onrender.com/usuarios/${usuario.cpf}").openConnection() as HttpURLConnection
                 conexao.requestMethod = "PUT"
-                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty(
+                    "Content-Type",
+                    "application/json; charset=utf-8"
+                )
                 conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
                 conexao.doOutput = true
 
@@ -465,20 +616,30 @@ object BancoDeDados {
                 escritor.write(json)
                 escritor.flush()
                 aoTerminar(conexao.responseCode == 200)
-            } catch (erro: Exception) { aoTerminar(false) }
+            } catch (erro: Exception) {
+                aoTerminar(false)
+            }
         }
     }
 
-    fun solicitarCodigoRecuperacao(email: String, cpf: String, aoTerminar: (Boolean, String, String?) -> Unit) {
+    fun solicitarCodigoRecuperacao(
+        email: String,
+        cpf: String,
+        aoTerminar: (Boolean, String, String?) -> Unit
+    ) {
         val cpfLimpo = cpf.filter { it.isDigit() }.trim()
         val emailTratado = email.trim().lowercase()
 
         thread {
             try {
-                val url = URL("https://transporte-interiorano-backend.onrender.com/solicitar_codigo")
+                val url =
+                    URL("https://transporte-interiorano-backend.onrender.com/solicitar_codigo")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty(
+                    "Content-Type",
+                    "application/json; charset=utf-8"
+                )
                 conexao.doOutput = true
                 conexao.connectTimeout = 60000
                 conexao.readTimeout = 60000
@@ -495,20 +656,24 @@ object BancoDeDados {
 
                 val codigoResposta = conexao.responseCode
 
-                // 🟢 CORRIGIDO: Agora lê o erro do servidor se der falha
                 if (codigoResposta == 200) {
                     val textoResposta = conexao.inputStream.bufferedReader().readText()
                     val res = JSONObject(textoResposta)
-                    val mensagemServidor = res.optString("mensagem", "Código enviado para o e-mail cadastrado!")
+                    val mensagemServidor = res.optString(
+                        "mensagem",
+                        "Código enviado para o e-mail cadastrado!"
+                    )
                     aoTerminar(true, mensagemServidor, "")
                 } else {
                     val erroStream = conexao.errorStream
-                    val textoErro = erroStream?.bufferedReader()?.readText() ?: "Erro desconhecido no servidor"
+                    val textoErro = erroStream?.bufferedReader()?.readText()
+                        ?: "Erro desconhecido no servidor"
                     var mensagemErro = "Dados incorretos ou não cadastrados."
                     try {
                         val resErro = JSONObject(textoErro)
                         mensagemErro = resErro.optString("erro", mensagemErro)
-                    } catch (e: Exception) {}
+                    } catch (e: Exception) {
+                    }
                     aoTerminar(false, mensagemErro, null)
                 }
             } catch (erro: Exception) {
@@ -518,12 +683,21 @@ object BancoDeDados {
         }
     }
 
-    fun redefinirSenhaComCodigo(email: String, codigo: String, novaSenha: String, aoTerminar: (Boolean, String) -> Unit) {
+    fun redefinirSenhaComCodigo(
+        email: String,
+        codigo: String,
+        novaSenha: String,
+        aoTerminar: (Boolean, String) -> Unit
+    ) {
         thread {
             try {
-                val conexao = URL("https://transporte-interiorano-backend.onrender.com/validar_e_redefinir_senha").openConnection() as HttpURLConnection
+                val conexao =
+                    URL("https://transporte-interiorano-backend.onrender.com/validar_e_redefinir_senha").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty(
+                    "Content-Type",
+                    "application/json; charset=utf-8"
+                )
                 conexao.doOutput = true
                 conexao.connectTimeout = 60000
                 conexao.readTimeout = 60000
@@ -541,14 +715,14 @@ object BancoDeDados {
 
                 val codigoResposta = conexao.responseCode
 
-                // 🟢 Garante que a resposta vai para a Thread Principal (UI Thread)
                 if (codigoResposta == 200) {
                     Handler(Looper.getMainLooper()).post {
                         aoTerminar(true, "Senha alterada com sucesso!")
                     }
                 } else {
                     val erroStream = conexao.errorStream
-                    val textoErro = erroStream?.bufferedReader()?.readText() ?: "Erro desconhecido (Código $codigoResposta)"
+                    val textoErro = erroStream?.bufferedReader()?.readText()
+                        ?: "Erro desconhecido (Código $codigoResposta)"
                     var mensagemErro = "Falha ao alterar a senha."
                     try {
                         val resErro = JSONObject(textoErro)
@@ -570,4 +744,47 @@ object BancoDeDados {
     }
 
     fun listarNomesNoBanco() {}
+
+    fun cancelarViagemGeralMotorista(
+        caronaId: Int,
+        motivoTexto: String,
+        aoConcluir: (Boolean) -> Unit
+    ) {
+        thread {
+            try {
+                val url =
+                    URL("https://transporte-interiorano-backend.onrender.com/cancelar_carona_geral")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty(
+                    "Content-Type",
+                    "application/json; charset=utf-8"
+                )
+                conexao.doOutput = true
+
+                val json = JSONObject().apply {
+                    put("carona_id", caronaId)
+                    put("motivo", motivoTexto)
+                }
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                if (conexao.responseCode == 200) {
+                    // Recarrega os dados locais para o app atualizar a tela do motorista imediatamente
+                    carregarDadosSincrono(cpfUsuarioLogado)
+
+                    // Retorna o sucesso para a Thread Principal (UI) atualizar os componentes visuais
+                    Handler(Looper.getMainLooper()).post { aoConcluir(true) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+            }
+        }
+    }
 }

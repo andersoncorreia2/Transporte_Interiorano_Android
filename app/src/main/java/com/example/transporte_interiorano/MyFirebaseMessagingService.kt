@@ -48,25 +48,30 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val channelId = "canal_caronas_id"
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // O Android 8.0 (Oreo) ou superior exige a criação de um "Canal de Notificação"
+        // No Android 8.0+, o SOM e a VIBRAÇÃO devem ser configurados obrigatoriamente no CANAL
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
                 "Avisos de Carona",
                 NotificationManager.IMPORTANCE_HIGH
-            )
+            ).apply {
+                description = "Alertas de pedidos de vagas"
+                enableLights(true)
+                enableVibration(true)
+                // O IMPORTANCE_HIGH já força o som padrão do sistema no canal automaticamente
+            }
             notificationManager.createNotificationChannel(channel)
         }
 
-        // Monta a notificação visual
+        // Monta a notificação visual de forma limpa (sem o setDefaults descontinuado)
         val builder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Você pode trocar por um ícone próprio do app depois
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(titulo)
             .setContentText(mensagem)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_HIGH) // Mantido para retrocompatibilidade
             .setAutoCancel(true)
 
-        // Usa um ID aleatório para que, se chegarem 2 notificações seguidas, uma não apague a outra
+        // Usa um ID aleatório para acumular notificações sem sobrepor
         notificationManager.notify(Random.nextInt(), builder.build())
     }
 
