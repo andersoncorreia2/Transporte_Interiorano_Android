@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 //import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,10 +116,12 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
         .filter { it.passageiro.trim().equals(nomeLogado.trim(), ignoreCase = true) }
         .maxByOrNull { it.idReal }
 
-    //val vagasRestantes = carona.vagas.toIntOrNull() ?: 0
     val totalVagas = carona.vagas.toIntOrNull() ?: 0
     val qtdOcupadas = pedidosDaCarona.count { it.status.lowercase().contains("aceito") || it.status.lowercase().contains("pendente") }
     val vagasRestantes = totalVagas - qtdOcupadas
+
+    // 🟢 CORREÇÃO CIRÚRGICA: Declarado aqui em cima para ser visível tanto no Cronômetro quanto na Lógica de Status abaixo!
+    val status = meuPedido?.status?.trim()?.lowercase() ?: ""
 
     Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -135,7 +138,7 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
             }
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 2. INFORMAÇÕES (Tudo dentro da mesma coluna)
+            // 2. INFORMAÇÕES
             Column(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -152,17 +155,37 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
                     Text("   ${carona.endereco_destino}", fontSize = 12.sp, color = Color.Gray)
                 }
 
-                // Estes campos estavam sumindo porque podiam ter ficado fora da coluna ou o card estava pequeno
                 Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text("👥 Vagas Livres: $vagasRestantes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao)
+
+                // 🟢 O CONTADOR AGORA CONSOME A VARIÁVEL DE ESCOPO GLOBAL COM SEGURANÇA
+                if (meuPedido != null && status.contains("pendente")) {
+                    var segundosRestantes by remember { mutableStateOf(900) }
+
+                    LaunchedEffect(key1 = meuPedido.idReal) {
+                        while (segundosRestantes > 0) {
+                            delay(1000)
+                            segundosRestantes--
+                        }
+                    }
+
+                    val minutosFormato = segundosRestantes / 60
+                    val segundosFormato = segundosRestantes % 60
+                    val tempoTexto = String.format("%02d:%02d", minutosFormato, segundosFormato)
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "⏱️ Tempo restante para pagar: $tempoTexto",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (segundosRestantes > 120) AzulPrincipal else VermelhoErro
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // 3. LÓGICA DE STATUS E BOTÕES
-            val status = meuPedido?.status?.trim()?.lowercase() ?: ""
-
-// 🟢 LIBERADOR: Se o pedido existe mas está Expirado, ignora esse bloco para exibir o botão de solicitar novamente
             if (meuPedido != null && !status.contains("expirado")) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -178,7 +201,6 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    // 🆕 O SEGREDO ESTÁ AQUI: O botão só aparece se for pendente!
                     if (status.contains("pendente")) {
                         OutlinedButton(
                             onClick = {
@@ -192,11 +214,20 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
                     }
                 }
             } else if (vagasRestantes > 0) {
+                val foiExpiradoAnteriormente = BancoDeDados.todosOsPedidos.any {
+                    it.caronaId == carona.id && it.passageiroCpf == BancoDeDados.cpfUsuarioLogado && it.status.equals("Expirado", ignoreCase = true)
+                }
+
                 Button(
-                    onClick = { aoClicarEmSolicitar(carona) }, // Isto abre o DetalhesScreen
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                    onClick = { aoClicarEmSolicitar(carona) },
+                    colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Solicitar Vaga", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (foiExpiradoAnteriormente) "Solicitar Vaga Novamente 🔄" else "Solicitar Vaga 🚗",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             } else {
                 Surface(modifier = Modifier.fillMaxWidth(), color = Color.LightGray.copy(alpha = 0.3f), shape = RoundedCornerShape(8.dp)) {
