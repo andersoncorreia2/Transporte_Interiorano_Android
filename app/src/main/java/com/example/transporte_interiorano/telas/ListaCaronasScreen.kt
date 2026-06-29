@@ -162,7 +162,8 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
             // 3. LÓGICA DE STATUS E BOTÕES
             val status = meuPedido?.status?.trim()?.lowercase() ?: ""
 
-            if (meuPedido != null) {
+// 🟢 LIBERADOR: Se o pedido existe mas está Expirado, ignora esse bloco para exibir o botão de solicitar novamente
+            if (meuPedido != null && !status.contains("expirado")) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically

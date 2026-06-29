@@ -178,6 +178,12 @@ fun DetalhesScreen(
             .sortedByDescending { it.idReal }
             .firstOrNull { it.status.lowercase() != "finalizado" }
 
+        // 🕵️ RASTREADOR DE HISTÓRICO: Verifica se o último registro dela para essa viagem foi marcado como Expirado
+        val foiExpiradoAnteriormente = pedidosDaCarona.any {
+            it.passageiro.trim().lowercase() == nomePassageiroLogado.trim().lowercase() &&
+                    it.status.equals("Expirado", ignoreCase = true)
+        }
+
         // 2. Lógica para exibir o status (se existir pedido ativo)
         if (meuPedido != null) {
             Text(
@@ -188,7 +194,7 @@ fun DetalhesScreen(
             )
         }
 
-        // 3. Botão ÚNICO de Confirmar Vaga (sempre disponível para esta tela)
+        // 3. Botão ÚNICO de Confirmar Vaga com Texto Inteligente
         val context = LocalContext.current
         Button(
             onClick = {
@@ -205,7 +211,12 @@ fun DetalhesScreen(
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao)
         ) {
-            Text("Confirmar Vaga", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            // 🟢 SEPARAÇÃO EXCLUSIVA DE TEXTO: Altera a mensagem dinâmica na tela se ela perdeu o prazo antes
+            Text(
+                text = if (foiExpiradoAnteriormente) "Confirmar Vaga Novamente 🔄" else "Confirmar Vaga",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     } // Fecha a Column
 } // Fecha a função DetalhesScreen
