@@ -37,13 +37,15 @@ fun ListaCaronasScreen(
 ) {
     Scaffold(
         topBar = {
+            // 💡 SUBSTITUA ESSE BLOCO DA TOPAPPBAR (Linhas 20 a 33):
             TopAppBar(
                 title = {
                     Text("Transporte Interiorano", color = Color.White, fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
                     IconButton(onClick = aoClicarVoltar) {
-                        Icon(Icons.Filled.Close, contentDescription = "Fechar", tint = Color.White)
+                        // 🟢 MUDANÇA: Substituído por seta de retorno para a tela de modalidades
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Voltar", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AzulPrincipal)

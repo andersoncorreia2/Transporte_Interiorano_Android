@@ -30,6 +30,10 @@ android {
                 "proguard-rules.pro"
             )
         }
+        debug {
+            // 🟢 ISSO AQUI CRIA O SEU APLICATIVO GÊMEO:
+            //applicationIdSuffix = ".dev"   🟢 REMOVIDO o suffix para o Firebase aceitar compilar localmente
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

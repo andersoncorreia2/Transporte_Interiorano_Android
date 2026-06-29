@@ -48,21 +48,27 @@ data class Pedido(
 )
 
 object BancoDeDados {
+    // 🟢 CENTRALIZADO: Link do túnel ngrok gerado no seu VS Code para o ambiente de desenvolvimento local
+    //private const val BASE_URL = "https://obnoxious-audience-finite.ngrok-free.dev"
+    // Mude para o IP real da sua ancoragem atual:
+    //private const val BASE_URL = "http://10.233.20.194:5000"
+    //private const val BASE_URL = "http://192.168.1.66:5000"
+    private const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
+
     var caronas = mutableStateListOf<Carona>()
+
+    var corridasEmergentesDisponiveis = mutableStateListOf<JSONObject>()
     var todosOsPedidos = mutableStateListOf<Pedido>()
     var temEventoAtivo: Boolean = false
     var tokenSessao: String = ""
 
-    // 🟢 Guardamos o CPF do usuário logado localmente para o Radar usar em background
     var cpfUsuarioLogado: String = ""
 
-    // 🟢 MODIFICADO: Agora recebe o cpfUsuario para injetar o filtro na URL do backend
     private fun carregarDadosSincrono(cpfUsuario: String) {
         if (cpfUsuario.isEmpty()) return
         try {
-            // 🟢 Injeta o parâmetro do CPF na rota de caronas conforme o novo app.py
             val respostaCaronas = URL(
-                "https://transporte-interiorano-backend.onrender.com/caronas/${
+                "$BASE_URL/caronas/${
                     java.net.URLEncoder.encode(
                         cpfUsuario,
                         "UTF-8"
@@ -92,8 +98,7 @@ object BancoDeDados {
                 )
             }
 
-            val respostaSolicitacoes =
-                URL("https://transporte-interiorano-backend.onrender.com/solicitacoes").readText()
+            val respostaSolicitacoes = URL("$BASE_URL/solicitacoes").readText()
             val jsonArraySolicitacoes = JSONArray(respostaSolicitacoes)
             val novaListaPedidos = mutableListOf<Pedido>()
             for (i in 0 until jsonArraySolicitacoes.length()) {
@@ -125,14 +130,12 @@ object BancoDeDados {
         }
     }
 
-    // 🟢 MODIFICADO: Encaminha o CPF logado
     fun buscarCaronasDoServidor() {
         thread {
             carregarDadosSincrono(cpfUsuarioLogado)
         }
     }
 
-    // 🟢 MODIFICADO: Encaminha o CPF logado
     fun buscarSolicitacoesDoServidor() {
         thread {
             carregarDadosSincrono(cpfUsuarioLogado)
@@ -142,7 +145,7 @@ object BancoDeDados {
     fun fazerSolicitacao(carona: Carona, nomePassageiro: String, cpfPassageiro: String) {
         thread {
             try {
-                val url = URL("https://transporte-interiorano-backend.onrender.com/solicitacoes")
+                val url = URL("$BASE_URL/solicitacoes")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -159,7 +162,7 @@ object BancoDeDados {
                 escritor.flush()
 
                 if (conexao.responseCode == 200 || conexao.responseCode == 201) {
-                    android.util.Log.d("SOLICITACAO_OK", "Pedido gravado com sucesso no Postgres!")
+                    android.util.Log.d("SOLICITACAO_OK", "Pedido gravado com sucesso!")
                     carregarDadosSincrono(cpfUsuarioLogado)
                 }
             } catch (erro: Exception) {
@@ -181,8 +184,7 @@ object BancoDeDados {
     ) {
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/caronas").openConnection() as HttpURLConnection
+                val conexao = URL("$BASE_URL/caronas").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
@@ -216,8 +218,7 @@ object BancoDeDados {
         todosOsPedidos.removeAll { it.idReal == pedidoIdReal }
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/solicitacoes/$pedidoIdReal").openConnection() as HttpURLConnection
+                val conexao = URL("$BASE_URL/solicitacoes/$pedidoIdReal").openConnection() as HttpURLConnection
                 conexao.requestMethod = "DELETE"
                 if (conexao.responseCode == 200) {
                     carregarDadosSincrono(cpfUsuarioLogado)
@@ -228,7 +229,6 @@ object BancoDeDados {
     }
 
     fun responderPedidoMotorista(pedidoIdReal: Int, statusDecidido: String) {
-        // 🟢 PASSO 1: Atualiza imediatamente a interface local na Main Thread para dar velocidade
         Handler(Looper.getMainLooper()).post {
             val index = todosOsPedidos.indexOfFirst { it.idReal == pedidoIdReal }
             if (index != -1) {
@@ -239,8 +239,7 @@ object BancoDeDados {
 
         thread {
             try {
-                val url =
-                    URL("https://transporte-interiorano-backend.onrender.com/solicitacoes/$pedidoIdReal")
+                val url = URL("$BASE_URL/solicitacoes/$pedidoIdReal")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "PUT"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -253,7 +252,6 @@ object BancoDeDados {
 
                 if (conexao.responseCode == 200 || conexao.responseCode == 201) {
                     android.util.Log.d("STATUS_OK", "Pedido respondido com sucesso!")
-                    // 🟢 PASSO 2: Força o recarregamento síncrono também dentro da Thread de interface de forma segura
                     Handler(Looper.getMainLooper()).post {
                         thread {
                             carregarDadosSincrono(cpfUsuarioLogado)
@@ -272,14 +270,10 @@ object BancoDeDados {
         temEventoAtivo = false
         thread {
             try {
-                val url =
-                    URL("https://transporte-interiorano-backend.onrender.com/caronas/$caronaId")
+                val url = URL("$BASE_URL/caronas/$caronaId")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "DELETE"
-                conexao.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=utf-8"
-                )
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
 
                 if (conexao.responseCode == 200) {
                     android.util.Log.d("DELETE_OK", "Evento excluído com sucesso!")
@@ -299,13 +293,9 @@ object BancoDeDados {
     ) {
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/finalizar_solicitacao").openConnection() as HttpURLConnection
+                val conexao = URL("$BASE_URL/finalizar_solicitacao").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=utf-8"
-                )
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
                 val json = JSONObject().apply {
                     put("solicitacao_id", solicitacaoId)
@@ -325,7 +315,6 @@ object BancoDeDados {
         }
     }
 
-    // 🟢 MODIFICADO: O radar de segundo plano repassa o CPF salvo em background continuamente
     fun ligarRadar() {
         thread {
             while (true) {
@@ -344,21 +333,31 @@ object BancoDeDados {
     ) {
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/login").openConnection() as HttpURLConnection
+                val url = URL("$BASE_URL/login")
+                val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=utf-8"
-                )
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.connectTimeout = 5000
+                conexao.readTimeout = 5000
                 conexao.doOutput = true
-                val json = """{"usuario": "$usuarioRecebido", "senha": "$senhaRecebida"}"""
+
+                val usuarioTratado = usuarioRecebido.trim().lowercase()
+
+                // Envelopamento seguro usando JSONObject nativo
+                val json = JSONObject().apply {
+                    put("usuario", usuarioTratado)
+                    put("senha", senhaRecebida)
+                }
+
                 val escritor = OutputStreamWriter(conexao.outputStream)
-                escritor.write(json)
+                escritor.write(json.toString())
                 escritor.flush()
+                escritor.close()
 
                 if (conexao.responseCode == 200) {
-                    val res = JSONObject(conexao.inputStream.bufferedReader().readText())
+                    // 💡 CORREÇÃO: Consumo seguro e explícito do buffer de resposta para evitar estouros
+                    val textoResposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val res = JSONObject(textoResposta)
                     tokenSessao = res.getString("token")
                     val resUsuario = res.getJSONObject("usuario")
 
@@ -381,15 +380,14 @@ object BancoDeDados {
                         usuario = resUsuario.optString("usuario", "")
                     )
 
-                    // 🟢 REGISTRO CRÍTICO: No login bem-sucedido, memoriza o CPF para uso automático das chamadas subsequentes
                     cpfUsuarioLogado = usuarioLogado.cpf
-
                     aoTerminar(usuarioLogado, "")
                 } else {
-                    aoTerminar(null, "Negado")
+                    aoTerminar(null, "Usuário ou senha incorretos.")
                 }
             } catch (erro: Exception) {
-                aoTerminar(null, "Erro")
+                erro.printStackTrace()
+                aoTerminar(null, "Falha na comunicação com o servidor.")
             }
         }
     }
@@ -415,32 +413,46 @@ object BancoDeDados {
     ) {
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/usuarios").openConnection() as HttpURLConnection
+                val url = URL("$BASE_URL/usuarios")
+                val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=utf-8"
-                )
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.connectTimeout = 5000
+                conexao.readTimeout = 5000
                 conexao.doOutput = true
 
-                val json = """{
-                    "nome": "$nome", "cpf": "$cpf", "telefone": "$telefone", "email": "$email", 
-                    "senha": "$senha", "veiculo": "$veiculo", "placa": "$placa", "vagas": "$vagas", 
-                    "rua": "$rua", "numero": "$numero", "complemento": "$complemento", 
-                    "bairro": "$bairro", "cidade": "$cidade", "estado": "$estado", "cep": "$cep", "usuario": "$username"
-                }"""
+                val json = JSONObject().apply {
+                    put("nome", nome)
+                    put("cpf", cpf)
+                    put("telefone", telefone)
+                    put("email", email.trim().lowercase())
+                    put("senha", senha)
+                    put("veiculo", veiculo)
+                    put("placa", placa)
+                    put("vagas", vagas)
+                    put("rua", rua)
+                    put("numero", numero)
+                    put("complemento", complemento)
+                    put("bairro", bairro)
+                    put("cidade", cidade)
+                    put("estado", estado)
+                    put("cep", cep)
+                    put("usuario", username.trim().lowercase())
+                }
 
                 val escritor = OutputStreamWriter(conexao.outputStream)
-                escritor.write(json)
+                escritor.write(json.toString())
                 escritor.flush()
+                escritor.close()
+
                 when (conexao.responseCode) {
                     201 -> aoTerminar(true, "")
                     400 -> aoTerminar(false, "Usuário ou e-mail já existe")
-                    else -> aoTerminar(false, "Erro")
+                    else -> aoTerminar(false, "Erro no servidor")
                 }
             } catch (erro: Exception) {
-                aoTerminar(false, "Falha")
+                erro.printStackTrace()
+                aoTerminar(false, "Falha na conexão.")
             }
         }
     }
@@ -451,21 +463,36 @@ object BancoDeDados {
     ) {
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/verificar_usuario/${username.trim()}").openConnection() as HttpURLConnection
+                // 💡 CORREÇÃO CRÍTICA: Codifica o nome de usuário para aceitar pontos (.), espaços e acentos na URL
+                val usuarioCodificado = java.net.URLEncoder.encode(username.trim(), "UTF-8")
+
+                val url = URL("$BASE_URL/verificar_usuario/$usuarioCodificado")
+                val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "GET"
+                conexao.connectTimeout = 5000
+                conexao.readTimeout = 5000
+
                 if (conexao.responseCode == 200) {
-                    val res = JSONObject(conexao.inputStream.bufferedReader().readText())
+                    val textoResposta = conexao.inputStream.bufferedReader().readText()
+                    val res = JSONObject(textoResposta)
                     val disp = res.getBoolean("disponivel")
                     val arr = res.getJSONArray("sugestoes")
+
                     val list = mutableListOf<String>()
                     for (i in 0 until arr.length()) {
                         list.add(arr.getString(i))
                     }
+
+                    // Retorna os dados com sucesso para a interface
                     aoResultar(disp, list)
+                } else {
+                    // Se o servidor responder algo diferente de 200, assume que está disponível para não travar o usuário
+                    aoResultar(true, emptyList())
                 }
             } catch (e: Exception) {
-                aoResultar(false, emptyList())
+                e.printStackTrace()
+                // Em caso de falha de rede física, assume verdadeiro para o cadastro passar
+                aoResultar(true, emptyList())
             }
         }
     }
@@ -473,8 +500,7 @@ object BancoDeDados {
     fun verificarCpfExistente(cpf: String, aoDescobrir: (Boolean) -> Unit) {
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/verificar_cpf/$cpf").openConnection() as HttpURLConnection
+                val conexao = URL("$BASE_URL/verificar_cpf/$cpf").openConnection() as HttpURLConnection
                 conexao.requestMethod = "GET"
                 if (conexao.responseCode == 200) {
                     val res = JSONObject(conexao.inputStream.bufferedReader().readText())
@@ -489,7 +515,7 @@ object BancoDeDados {
         thread {
             try {
                 val conexao = URL(
-                    "https://transporte-interiorano-backend.onrender.com/usuarios/${
+                    "$BASE_URL/usuarios/${
                         java.net.URLEncoder.encode(
                             email,
                             "UTF-8"
@@ -507,8 +533,7 @@ object BancoDeDados {
     fun buscarMétricasPorCpf(cpf: String, aoTerminar: (Int, Int) -> Unit) {
         thread {
             try {
-                val resposta =
-                    URL("https://transporte-interiorano-backend.onrender.com/usuarios_por_cpf/$cpf").readText()
+                val resposta = URL("$BASE_URL/usuarios_por_cpf/$cpf").readText()
                 val json = JSONObject(resposta)
                 aoTerminar(
                     json.getInt("corridas_realizadas"),
@@ -524,7 +549,7 @@ object BancoDeDados {
         thread {
             try {
                 val resposta = URL(
-                    "https://transporte-interiorano-backend.onrender.com/historico_cpf/${
+                    "$BASE_URL/historico_cpf/${
                         java.net.URLEncoder.encode(
                             cpf,
                             "UTF-8"
@@ -560,7 +585,7 @@ object BancoDeDados {
         thread {
             try {
                 val resposta = URL(
-                    "https://transporte-interiorano-backend.onrender.com/historico_motorista_cpf/${
+                    "$BASE_URL/historico_motorista_cpf/${
                         java.net.URLEncoder.encode(
                             cpf,
                             "UTF-8"
@@ -595,13 +620,9 @@ object BancoDeDados {
     fun atualizarUsuarioNuvem(usuario: Usuario, aoTerminar: (Boolean) -> Unit) {
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/usuarios/${usuario.cpf}").openConnection() as HttpURLConnection
+                val conexao = URL("$BASE_URL/usuarios/${usuario.cpf}").openConnection() as HttpURLConnection
                 conexao.requestMethod = "PUT"
-                conexao.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=utf-8"
-                )
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
                 conexao.doOutput = true
 
@@ -632,14 +653,10 @@ object BancoDeDados {
 
         thread {
             try {
-                val url =
-                    URL("https://transporte-interiorano-backend.onrender.com/solicitar_codigo")
+                val url = URL("$BASE_URL/solicitar_codigo")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=utf-8"
-                )
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
                 conexao.connectTimeout = 60000
                 conexao.readTimeout = 60000
@@ -659,15 +676,11 @@ object BancoDeDados {
                 if (codigoResposta == 200) {
                     val textoResposta = conexao.inputStream.bufferedReader().readText()
                     val res = JSONObject(textoResposta)
-                    val mensagemServidor = res.optString(
-                        "mensagem",
-                        "Código enviado para o e-mail cadastrado!"
-                    )
+                    val mensagemServidor = res.optString("mensagem", "Código enviado para o e-mail cadastrado!")
                     aoTerminar(true, mensagemServidor, "")
                 } else {
                     val erroStream = conexao.errorStream
-                    val textoErro = erroStream?.bufferedReader()?.readText()
-                        ?: "Erro desconhecido no servidor"
+                    val textoErro = erroStream?.bufferedReader()?.readText() ?: "Erro desconhecido no servidor"
                     var mensagemErro = "Dados incorretos ou não cadastrados."
                     try {
                         val resErro = JSONObject(textoErro)
@@ -691,13 +704,9 @@ object BancoDeDados {
     ) {
         thread {
             try {
-                val conexao =
-                    URL("https://transporte-interiorano-backend.onrender.com/validar_e_redefinir_senha").openConnection() as HttpURLConnection
+                val conexao = URL("$BASE_URL/validar_e_redefinir_senha").openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=utf-8"
-                )
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
                 conexao.connectTimeout = 60000
                 conexao.readTimeout = 60000
@@ -721,8 +730,7 @@ object BancoDeDados {
                     }
                 } else {
                     val erroStream = conexao.errorStream
-                    val textoErro = erroStream?.bufferedReader()?.readText()
-                        ?: "Erro desconhecido (Código $codigoResposta)"
+                    val textoErro = erroStream?.bufferedReader()?.readText() ?: "Erro desconhecido (Código $codigoResposta)"
                     var mensagemErro = "Falha ao alterar a senha."
                     try {
                         val resErro = JSONObject(textoErro)
@@ -752,14 +760,10 @@ object BancoDeDados {
     ) {
         thread {
             try {
-                val url =
-                    URL("https://transporte-interiorano-backend.onrender.com/cancelar_carona_geral")
+                val url = URL("$BASE_URL/cancelar_carona_geral")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
-                conexao.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=utf-8"
-                )
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.doOutput = true
 
                 val json = JSONObject().apply {
@@ -773,10 +777,7 @@ object BancoDeDados {
                 escritor.close()
 
                 if (conexao.responseCode == 200) {
-                    // Recarrega os dados locais para o app atualizar a tela do motorista imediatamente
                     carregarDadosSincrono(cpfUsuarioLogado)
-
-                    // Retorna o sucesso para a Thread Principal (UI) atualizar os componentes visuais
                     Handler(Looper.getMainLooper()).post { aoConcluir(true) }
                 } else {
                     Handler(Looper.getMainLooper()).post { aoConcluir(false) }
@@ -784,6 +785,239 @@ object BancoDeDados {
             } catch (e: Exception) {
                 e.printStackTrace()
                 Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+            }
+        }
+    }
+
+    // 🟢 1. DISPARAR SOLICITAÇÃO DE CORRIDA EMERGENTE (PASSAGEIRO)
+    fun criarCorridaEmergenteNuvem(
+        enderecoOrigem: String,
+        enderecoDestino: String,
+        latOrigem: Double,
+        lngOrigem: Double,
+        latDestino: Double,
+        lngDestino: Double,
+        aoConcluir: (Boolean, String, Int?) -> Unit
+    ) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/corridas/emergentes")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao") // Envia o token do passageiro logado
+                conexao.doOutput = true
+
+                val json = JSONObject().apply {
+                    put("endereco_origem", enderecoOrigem)
+                    put("endereco_destino", enderecoDestino)
+                    put("origem_latitude", latOrigem)
+                    put("origem_longitude", lngOrigem)
+                    put("destino_latitude", latDestino)
+                    put("destino_longitude", lngDestino)
+                }
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                if (conexao.responseCode == 201) {
+                    val textoResposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val res = JSONObject(textoResposta)
+                    val msg = res.optString("mensagem", "Procurando motoristas...")
+
+                    // 🟢 CAPTURA DINÂMICA: Pega o ID real retornado pelo Python no Render
+                    val idCorridaGerado = res.optInt("corrida_id", 0)
+
+                    Handler(Looper.getMainLooper()).post {
+                        // Envia o ID real para a tela do passageiro
+                        aoConcluir(true, msg, idCorridaGerado)
+                    }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoConcluir(false, "Erro ao solicitar corrida.", null) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post { aoConcluir(false, "Falha de rede.", null) }
+            }
+        }
+    }
+
+    // 🟢 2. FICAR ONLINE NO RADAR (MOTORISTA)
+    fun ficarOnlineRadarMotorista(aoConcluir: (Boolean, String) -> Unit) {
+        thread {
+            try {
+                // Altera a modalidade ativa do motorista para 'Emergencial' na nuvem
+                val url = URL("$BASE_URL/usuarios/alterar_modalidade")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.doOutput = true
+
+                val json = JSONObject().apply {
+                    put("modalidade", "Emergencial")
+                }
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                if (conexao.responseCode == 200) {
+                    // 🟢 Captura a resposta do servidor Render com segurança
+                    val textoResposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val msg = JSONObject(textoResposta).optString("mensagem", "Modo emergencial ativo!")
+
+                    Handler(Looper.getMainLooper()).post { aoConcluir(true, msg) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoConcluir(false, "Não foi possível ativar o modo online.") }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post { aoConcluir(false, "Erro de comunicação com o servidor.") }
+            }
+        }
+    }
+
+    // 🟢 3. BUSCADOR DE ENDEREÇOS AUTOMÁTICO (AUTO-SUGESTÃO GRATUITA)
+    fun buscarSugestoesDeEndereco(
+        textoDigitado: String,
+        aoReceberSugestoes: (List<String>) -> Unit
+    ) {
+        if (textoDigitado.trim().length < 3) {
+            aoReceberSugestoes(emptyList())
+            return
+        }
+        thread {
+            try {
+                // Consulta o serviço gratuito de Geocodificação Nominatim (OpenStreetMap) filtrando por Pernambuco
+                val queryCodificada = java.net.URLEncoder.encode("$textoDigitado, PE", "UTF-8")
+                val url = URL("https://nominatim.openstreetmap.org/search?q=$queryCodificada&format=json&addressdetails=1&limit=5")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.setRequestProperty("User-Agent", "com.example.transporte_interiorano") // Exigido pelo OpenStreetMap
+                conexao.connectTimeout = 4000
+                conexao.readTimeout = 4000
+
+                if (conexao.responseCode == 200) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val jsonArray = JSONArray(resposta)
+                    val listaEnderecos = mutableListOf<String>()
+
+                    for (i in 0 until jsonArray.length()) {
+                        val item = jsonArray.getJSONObject(i)
+                        val displayNome = item.optString("display_name", "")
+                        if (displayNome.isNotEmpty()) {
+                            listaEnderecos.add(displayNome)
+                        }
+                    }
+                    Handler(Looper.getMainLooper()).post { aoReceberSugestoes(listaEnderecos) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoReceberSugestoes(emptyList()) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post { aoReceberSugestoes(emptyList()) }
+            }
+        }
+    }
+
+    // 🟢 4. RADAR ATIVO DO MOTORISTA: Puxa chamados da nuvem a cada 4 segundos
+    fun buscarCorridasEmergentesDoServidor(aoReceber: (Boolean) -> Unit) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/corridas/emergentes/disponiveis")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "GET"
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao") // Envia o token do motorista logado
+                conexao.connectTimeout = 4000
+                conexao.readTimeout = 4000
+
+                if (conexao.responseCode == 200) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val jsonArray = JSONArray(resposta)
+
+                    val listaTemporaria = mutableListOf<JSONObject>()
+                    for (i in 0 until jsonArray.length()) {
+                        listaTemporaria.add(jsonArray.getJSONObject(i))
+                    }
+
+                    // Atualiza a lista observável na Thread principal do Android Studio
+                    Handler(Looper.getMainLooper()).post {
+                        corridasEmergentesDisponiveis.clear()
+                        corridasEmergentesDisponiveis.addAll(listaTemporaria)
+                        aoReceber(true)
+                    }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoReceber(false) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post { aoReceber(false) }
+            }
+        }
+    }
+
+    // 🟢 5. MOTORISTA ACEITA A CORRIDA DE EMERGÊNCIA
+    fun aceitarCorridaEmergenteNuvem(corridaId: Int, aoConcluir: (Boolean, String) -> Unit) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/corridas/emergentes/aceitar/$corridaId")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "PUT"
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.connectTimeout = 4000
+
+                if (conexao.responseCode == 200) {
+                    val texto = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val msg = JSONObject(texto).optString("mensagem", "Corrida aceita!")
+                    Handler(Looper.getMainLooper()).post { aoConcluir(true, msg) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoConcluir(false, "Esta corrida não está mais disponível.") }
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post { aoConcluir(false, "Falha de rede com o servidor.") }
+            }
+        }
+    }
+
+    // 🟢 6. PASSAGEIRO CANCELA A SOLICITAÇÃO ATIVA
+    fun cancelarCorridaEmergentePassageiro(corridaId: Int, aoConcluir: (Boolean) -> Unit) {
+        thread {
+            try {
+                // Rota padrão do seu backend para derrubar solicitações
+                val url = URL("$BASE_URL/corridas/emergentes/cancelar/$corridaId")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "DELETE"
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+
+                Handler(Looper.getMainLooper()).post { aoConcluir(conexao.responseCode == 200) }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+            }
+        }
+    }
+
+    // 🟢 7. FUNÇÃO ADICIONADA: CONSULTA O STATUS ATUAL DA CORRIDA (USADO PELO POOLING DO PASSAGEIRO)
+    fun buscarStatusCorridaNuvem(corridaId: Int, aoReceber: (JSONObject?) -> Unit) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/corridas/emergentes/status/$corridaId")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "GET"
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.connectTimeout = 3000
+
+                if (conexao.responseCode == 200) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(resposta)
+                    Handler(Looper.getMainLooper()).post { aoReceber(json) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoReceber(null) }
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post { aoReceber(null) }
             }
         }
     }

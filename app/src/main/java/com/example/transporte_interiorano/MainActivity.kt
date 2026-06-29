@@ -9,7 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.Button
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable // 🟢 ADICIONADO PARA PERSISTÊNCIA DE TELA
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -31,6 +31,7 @@ import java.util.Locale
 import java.util.Date
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,8 +66,54 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
 
-                    // 🟢 MODIFICADO: Agora usa rememberSaveable para não perder a string da tela ao sair do aplicativo
                     var telaAtual by rememberSaveable { mutableStateOf("splash") }
+                    // 💡 ADICIONE LOGO ABAIXO DA VARIÁVEL 'telaAtual':
+                    var latitudeAtual by rememberSaveable { mutableStateOf(-7.9407) } // Começa em Paulista por padrão
+                    var longitudeAtual by rememberSaveable { mutableStateOf(-34.8728) }
+                    val contextoAndroid = this@MainActivity
+
+                    // 🟢 DISPARADOR DO GPS EM TEMPO REAL CONECTADO COM OS SENSORES DO HARDWARE
+                    LaunchedEffect(telaAtual) {
+                        if (telaAtual == "mapaEmergencial") {
+                            // Verifica se o usuário deu a permissão de GPS no celular
+                            if (ContextCompat.checkSelfPermission(contextoAndroid, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                                val locationManager = contextoAndroid.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
+
+                                try {
+                                    // Tenta pegar a última localização conhecida rápida para não travar o mapa
+                                    val ultimaLocalizacao = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                                        ?: locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
+
+                                    ultimaLocalizacao?.let {
+                                        latitudeAtual = it.latitude
+                                        longitudeAtual = it.longitude
+                                    }
+
+                                    // Cria um ouvinte para atualizar a posição se a pessoa se movimentar pelo bairro
+                                    locationManager.requestLocationUpdates(
+                                        android.location.LocationManager.GPS_PROVIDER,
+                                        5000L, // Atualiza a cada 5 segundos
+                                        5f,    // Ou a cada 5 metros de deslocamento
+                                        object : android.location.LocationListener {
+                                            override fun onLocationChanged(location: android.location.Location) {
+                                                latitudeAtual = location.latitude
+                                                longitudeAtual = location.longitude
+                                            }
+                                            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                                            override fun onProviderEnabled(provider: String) {}
+                                            override fun onProviderDisabled(provider: String) {}
+                                        }
+                                    )
+                                } catch (e: SecurityException) {
+                                    Log.e("GPS_ERRO", "Erro de permissão ao ler sensores: ${e.message}")
+                                }
+                            } else {
+                                // Se não tiver permissão ainda, solicita na hora abrindo a caixinha nativa do Android
+                                ActivityCompat.requestPermissions(contextoAndroid, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 200)
+                            }
+                        }
+                    }
+
                     var erroDeCadastro by rememberSaveable { mutableStateOf("") }
                     var mensagemLogin by rememberSaveable { mutableStateOf("") }
 
@@ -105,9 +152,9 @@ class MainActivity : ComponentActivity() {
                     when (telaAtual) {
                         "splash" -> SplashScreen(
                             onTimeout = {
-                                // 🟢 SE JÁ TIVER UM USUÁRIO NA MEMÓRIA SALVA, PULA DIRETO A TELA DE LOGIN
+                                // 🟢 SE JÁ TIVER UM USUÁRIO LOGADO, DIRECIONA PARA A ESCOLHA DE MODALIDADE
                                 telaAtual = if (cpfLogado.isNotEmpty()) {
-                                    if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                                    "escolhaModalidade"
                                 } else {
                                     "login"
                                 }
@@ -145,12 +192,8 @@ class MainActivity : ComponentActivity() {
                                             if (task.isSuccessful) enviarTokenParaServidor(usuarioEncontrado.email, task.result)
                                         }
 
-                                        if (usuarioEncontrado.veiculo.isNotEmpty()) {
-                                            telaAtual = "status"
-                                        } else {
-                                            BancoDeDados.buscarCaronasDoServidor()
-                                            telaAtual = "listaCaronas"
-                                        }
+                                        // 🟢 Se o login deu certo, vai direto escolher a modalidade (Uber ou Carona)
+                                        telaAtual = "escolhaModalidade"
                                     } else {
                                         mensagemLogin = erro
                                     }
@@ -206,12 +249,8 @@ class MainActivity : ComponentActivity() {
                                 telaAtual = "detalhes"
                             },
                             aoClicarVoltar = {
-                                // 🟢 Limpa os estados salvos explicitamente quando o usuário escolhe Sair voluntariamente
-                                veiculoLogado = ""
-                                nomeLogado = ""
-                                emailLogado = ""
-                                cpfLogado = ""
-                                telaAtual = "login"
+                                // 🟢 MUDANÇA: A seta de voltar agora joga o passageiro para a escolha de modalidade
+                                telaAtual = "escolhaModalidade"
                             },
                             aoClicarPerfil = { telaAtual = "perfil" },
                             aoClicarHistorico = { telaAtual = "historico" }
@@ -269,12 +308,8 @@ class MainActivity : ComponentActivity() {
                             nomeMotoristaLogado = nomeLogado,
                             aoClicarPerfil = { telaAtual = "perfil" },
                             aoClicarVoltar = {
-                                // 🟢 Limpa os estados salvos explicitamente quando o usuário escolhe Sair voluntariamente
-                                veiculoLogado = ""
-                                nomeLogado = ""
-                                emailLogado = ""
-                                cpfLogado = ""
-                                telaAtual = "login"
+                                // 🟢 MUDANÇA: A seta de voltar agora joga o motorista para a escolha de modalidade
+                                telaAtual = "escolhaModalidade"
                             },
                             aoClicarNovoEvento = { telaAtual = "criarEvento" },
                             aoClicarHistorico = { telaAtual = "historico" }
@@ -356,6 +391,104 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+
+                        // 🟢 NOVA ROTA DE DIRECIONAMENTO ADICIONADA COM SUCESSO
+                        // 🟢 MUDANÇA: Passando o gatilho do botão "X" para deslogar de dentro do gerenciador de modalidades
+                        "escolhaModalidade" -> EscolhaModalidadeScreen(
+                            onModalidadeSelecionada = { modalidade ->
+                                if (modalidade == "Programada") {
+                                    telaAtual = if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                                } else {
+                                    // 🟢 ALTERADO: Direciona para a nova tela do mapa de forma síncrona
+                                    telaAtual = "mapaEmergencial"
+                                }
+                            },
+                            onClicarFecharGeral = {
+                                // 🟢 LÓGICA DE LOGOUT COMPLETA: Limpa os estados locais e joga no Login
+                                veiculoLogado = ""
+                                nomeLogado = ""
+                                emailLogado = ""
+                                usuarioLogado = ""
+                                cpfLogado = ""
+                                BancoDeDados.tokenSessao = ""
+                                BancoDeDados.cpfUsuarioLogado = ""
+                                telaAtual = "login"
+                            }
+                        )
+
+                        // 🟢 ADICIONADO: ROTA COMPLETA DO MODO EMERGENCIAL INTEGRADA COM O RENDER
+                        // 🟢 ALTERAÇÃO PARA GPS REAL (Sem simulações fixas de +0.015)
+                        "mapaEmergencial" -> MapaEmergencialScreen(
+                            isMotorista = veiculoLogado.isNotEmpty(),
+                            latitudeAtual = latitudeAtual,   // 🟢 Repassa a latitude real capturada pelo celular
+                            longitudeAtual = longitudeAtual, // 🟢 Repassa a longitude real capturada pelo celular
+                            aoClicarVoltar = { telaAtual = "escolhaModalidade" },
+                            aoChamarMotorista = { destinoDigitado, aoConfirmarIdNaTela ->
+                                // 📡 GPS REAL: Descobre o endereço de texto exato de onde o passageiro está pisando agora
+                                kotlin.concurrent.thread {
+                                    try {
+                                        val urlOrigem = URL("https://nominatim.openstreetmap.org/reverse?lat=$latitudeAtual&lon=$longitudeAtual&format=json")
+                                        val conexaoOrigem = urlOrigem.openConnection() as java.net.HttpURLConnection
+                                        conexaoOrigem.setRequestProperty("User-Agent", contextoAndroid.packageName)
+
+                                        var enderecoPartidaReal = "$ruaLogada, $numeroLogado, $bairroLogada, $cidadeLogada"
+                                        if (conexaoOrigem.responseCode == 200) {
+                                            val resp = conexaoOrigem.inputStream.bufferedReader().use { it.readText() }
+                                            enderecoPartidaReal = JSONObject(resp).optString("display_name", enderecoPartidaReal)
+                                        }
+
+                                        // 📡 Descobre as coordenadas reais do destino digitado
+                                        val queryCodificada = java.net.URLEncoder.encode(destinoDigitado, "UTF-8")
+                                        val urlDestino = URL("https://nominatim.openstreetmap.org/search?q=$queryCodificada&format=json&limit=1")
+                                        val conexaoDestino = urlDestino.openConnection() as java.net.HttpURLConnection
+                                        conexaoDestino.setRequestProperty("User-Agent", contextoAndroid.packageName)
+
+                                        if (conexaoDestino.responseCode == 200) {
+                                            val resposta = conexaoDestino.inputStream.bufferedReader().use { it.readText() }
+                                            val jsonArray = org.json.JSONArray(resposta)
+
+                                            if (jsonArray.length() > 0) {
+                                                val local = jsonArray.getJSONObject(0)
+                                                val latDestinoReal = local.getDouble("lat")
+                                                val lngDestinoReal = local.getDouble("lon")
+
+                                                // Envia os dados 100% dinâmicos coletados pelos sensores em tempo real
+                                                BancoDeDados.criarCorridaEmergenteNuvem(
+                                                    enderecoOrigem = enderecoPartidaReal,
+                                                    enderecoDestino = destinoDigitado,
+                                                    latOrigem = latitudeAtual,
+                                                    lngOrigem = longitudeAtual,
+                                                    latDestino = latDestinoReal,
+                                                    lngDestino = lngDestinoReal,
+                                                    aoConcluir = { sucesso, mensagemServidor, idCorridaReal ->
+                                                        // 🟢 CORREÇÃO: Força a atualização do estado visual do Compose dentro da Thread de UI
+                                                        contextoAndroid.runOnUiThread {
+                                                            if (sucesso) {
+                                                                Toast.makeText(contextoAndroid, "⚡ $mensagemServidor", Toast.LENGTH_LONG).show()
+                                                                idCorridaReal?.let { aoConfirmarIdNaTela(it) } // Transiciona a tela do passageiro imediatamente!
+                                                            } else {
+                                                                Toast.makeText(contextoAndroid, "❌ $mensagemServidor", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                            },
+                            aoFicarDisponivelMotorista = {
+                                BancoDeDados.ficarOnlineRadarMotorista { sucesso, mensagemServidor ->
+                                    if (sucesso) {
+                                        Toast.makeText(contextoAndroid, "🟢 $mensagemServidor", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(contextoAndroid, "❌ $mensagemServidor", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
             }
