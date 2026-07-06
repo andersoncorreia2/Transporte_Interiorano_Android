@@ -34,8 +34,8 @@ fun EditarPerfilScreen(
     var nome by remember { mutableStateOf(usuarioAtual.nome) }
     var cpf by remember { mutableStateOf(usuarioAtual.cpf) }
     var telefone by remember { mutableStateOf(usuarioAtual.telefone) }
-    var email by remember { mutableStateOf(usuarioAtual.email) } // 🟢 VOLTOU A SER MUDADO PELO CONTEXTO DE ESTADO
-    var username by remember { mutableStateOf(usuarioAtual.usuario) } // 🟢 RECUPERA O CAMPO DE IDENTIDADE DO USUÁRIO
+    var email by remember { mutableStateOf(usuarioAtual.email) }
+    var username by remember { mutableStateOf(usuarioAtual.usuario) }
 
     var cep by remember { mutableStateOf(usuarioAtual.cep) }
     var rua by remember { mutableStateOf(usuarioAtual.rua) }
@@ -46,11 +46,23 @@ fun EditarPerfilScreen(
     var estado by remember { mutableStateOf(usuarioAtual.estado) }
 
     var ofertarCarona by remember { mutableStateOf(usuarioAtual.veiculo.isNotEmpty()) }
-    var veiculo by remember { mutableStateOf(usuarioAtual.veiculo) }
+
+    // Extração segura do prefixo Carro/Moto vindo do Banco de Dados
+    var tipoVeiculo by remember { mutableStateOf(if (usuarioAtual.veiculo.startsWith("Moto")) "Moto" else "Carro") }
+    var veiculo by remember {
+        mutableStateOf(
+            if (usuarioAtual.veiculo.startsWith("Carro - ")) usuarioAtual.veiculo.removePrefix("Carro - ")
+            else if (usuarioAtual.veiculo.startsWith("Moto - ")) usuarioAtual.veiculo.removePrefix("Moto - ")
+            else usuarioAtual.veiculo
+        )
+    }
+
     var placa by remember { mutableStateOf(usuarioAtual.placa) }
     var vagas by remember { mutableStateOf(usuarioAtual.vagas) }
 
     var ufExpandido by remember { mutableStateOf(false) }
+    var tipoVeiculoExpandido by remember { mutableStateOf(false) }
+
     val estadosBrasil = listOf("AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO")
     var salvando by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -107,8 +119,18 @@ fun EditarPerfilScreen(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(value = cidade, onValueChange = { cidade = it }, label = { Text("Cidade") }, modifier = Modifier.weight(1.3f), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
-                ExposedDropdownMenuBox(expanded = ufExpandido, onExpandedChange = { ufExpandido = !ufExpandido }, modifier = Modifier.weight(1f)) {
-                    OutlinedTextField(value = estado, onValueChange = {}, readOnly = true, singleLine = true, label = { Text("UF") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ufExpandido) }, colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(), modifier = Modifier.fillMaxWidth().menuAnchor())
+                ExposedDropdownMenuBox(
+                    expanded = ufExpandido,
+                    onExpandedChange = { ufExpandido = !ufExpandido },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = estado, onValueChange = {}, readOnly = true, singleLine = true,
+                        label = { Text("UF") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ufExpandido) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
                     ExposedDropdownMenu(expanded = ufExpandido, onDismissRequest = { ufExpandido = false }) {
                         estadosBrasil.forEach { uf -> DropdownMenuItem(text = { Text(uf) }, onClick = { estado = uf; ufExpandido = false }) }
                     }
@@ -122,7 +144,6 @@ fun EditarPerfilScreen(
 
             Text("DADOS DA CONTA", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
 
-            // 🟢 MODIFICADO: Campo de E-mail agora está 100% editável e aberto para alteração!
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it.filter { char -> !char.isWhitespace() } },
@@ -131,7 +152,6 @@ fun EditarPerfilScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
             )
 
-            // 🆕 Nome de Usuário (Bloqueado por ser o indexador imutável de login)
             OutlinedTextField(
                 value = username, onValueChange = { }, label = { Text("Nome de Usuário (Não editável)") }, modifier = Modifier.fillMaxWidth(),
                 readOnly = true, colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color(0xFFEEEEEE))
@@ -145,11 +165,41 @@ fun EditarPerfilScreen(
                     }
                     if (ofertarCarona) {
                         Spacer(modifier = Modifier.height(8.dp))
+
+                        ExposedDropdownMenuBox(
+                            expanded = tipoVeiculoExpandido,
+                            onExpandedChange = { tipoVeiculoExpandido = !tipoVeiculoExpandido },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedTextField(
+                                value = tipoVeiculo, onValueChange = {}, readOnly = true, singleLine = true,
+                                label = { Text("Tipo de Veículo") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = tipoVeiculoExpandido) },
+                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                            )
+                            // 🟢 ALTERAÇÃO 1: Adicionada a injeção automática de vagas sugeridas com base no tipo selecionado (4 ou 1)
+                            ExposedDropdownMenu(expanded = tipoVeiculoExpandido, onDismissRequest = { tipoVeiculoExpandido = false }) {
+                                DropdownMenuItem(text = { Text("Carro") }, onClick = { tipoVeiculo = "Carro"; vagas = "4"; tipoVeiculoExpandido = false })
+                                DropdownMenuItem(text = { Text("Moto") }, onClick = { tipoVeiculo = "Moto"; vagas = "1"; tipoVeiculoExpandido = false })
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         OutlinedTextField(value = veiculo, onValueChange = { veiculo = it }, label = { Text("Modelo do Veículo") }, modifier = Modifier.fillMaxWidth())
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(value = placa, onValueChange = { placa = it.uppercase().take(7) }, label = { Text("Placa") }, modifier = Modifier.weight(1.5f), visualTransformation = PlacaVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
-                            OutlinedTextField(value = vagas, onValueChange = { vagas = it }, label = { Text("Nº Vagas") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+
+                            // 🟢 ALTERAÇÃO 2: Mantido aberto e editável com teclado numérico para suportar customizações (ex: 6 ou 11 vagas)
+                            OutlinedTextField(
+                                value = vagas,
+                                onValueChange = { vagas = it.filter { char -> char.isDigit() } },
+                                label = { Text("Nº Vagas") },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
                         }
                     }
                 }
@@ -161,9 +211,12 @@ fun EditarPerfilScreen(
                 onClick = {
                     if (email.isNotBlank() && nome.isNotBlank()) {
                         salvando = true
+
                         val usuarioAtualizado = Usuario(
                             nome = nome, cpf = cpf, telefone = telefone, email = email, senha = usuarioAtual.senha,
-                            veiculo = if (ofertarCarona) veiculo else "", placa = if (ofertarCarona) placa else "", vagas = if (ofertarCarona) vagas else "0",
+                            veiculo = if (ofertarCarona) "$tipoVeiculo - $veiculo" else "",
+                            placa = if (ofertarCarona) placa else "",
+                            vagas = if (ofertarCarona) vagas else "0",
                             rua = rua, numero = numero, complemento = complemento, bairro = bairro, cidade = cidade, estado = estado, cep = cep,
                             usuario = username
                         )
@@ -178,9 +231,13 @@ fun EditarPerfilScreen(
                         }
                     } else { Toast.makeText(context, "Preencha os campos obrigatórios!", Toast.LENGTH_SHORT).show() }
                 },
-                enabled = !salvando, colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(8.dp)
-            ) { Text(if (salvando) "Salvando..." else "Salvar Alterações", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                enabled = !salvando,
+                colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(if (salvando) "Salvando..." else "Salvar Alterações", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
             Spacer(modifier = Modifier.height(24.dp))
         }
     }

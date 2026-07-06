@@ -49,11 +49,13 @@ data class Pedido(
 
 object BancoDeDados {
     // 🟢 CENTRALIZADO: Link do túnel ngrok gerado no seu VS Code para o ambiente de desenvolvimento local
-    //private const val BASE_URL = "https://obnoxious-audience-finite.ngrok-free.dev"
+    //const val BASE_URL = "https://obnoxious-audience-finite.ngrok-free.dev"
     // Mude para o IP real da sua ancoragem atual:
     //private const val BASE_URL = "http://10.233.20.194:5000"
+    //private const val BASE_URL = "http://10.127.212.194:5000"
     //private const val BASE_URL = "http://192.168.1.66:5000"
-    private const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
+    //private const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
+    const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
 
     var caronas = mutableStateListOf<Carona>()
 
@@ -210,6 +212,53 @@ object BancoDeDados {
                 }
             } catch (erro: Exception) {
                 erro.printStackTrace()
+            }
+        }
+    }
+
+    fun atualizarCaronaNoServidor(
+        id: Int,
+        nomeEvento: String,
+        cidadeOrigem: String,
+        enderecoOrigem: String,
+        cidadeDestino: String,
+        enderecoDestino: String,
+        horario: String,
+        vagas: String,
+        aoConcluir: (Boolean) -> Unit
+    ) {
+        thread {
+            try {
+                // Rota PUT mapeada para atualizar a carona pelo ID correspondente
+                val conexao = URL("$BASE_URL/caronas/$id").openConnection() as HttpURLConnection
+                conexao.requestMethod = "PUT"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.doOutput = true
+
+                val json = JSONObject().apply {
+                    put("evento_nome", nomeEvento)
+                    put("cidade_origem", cidadeOrigem)
+                    put("endereco_origem", enderecoOrigem)
+                    put("cidade_destino", cidadeDestino)
+                    put("endereco_destino", enderecoDestino)
+                    put("horario", horario)
+                    put("vagas", vagas)
+                }
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                if (conexao.responseCode == 200) {
+                    carregarDadosSincrono(cpfUsuarioLogado)
+                    Handler(Looper.getMainLooper()).post { aoConcluir(true) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+                }
+            } catch (erro: Exception) {
+                erro.printStackTrace()
+                Handler(Looper.getMainLooper()).post { aoConcluir(false) }
             }
         }
     }
@@ -797,6 +846,7 @@ object BancoDeDados {
         lngOrigem: Double,
         latDestino: Double,
         lngDestino: Double,
+        veiculoTipo: String,
         aoConcluir: (Boolean, String, Int?) -> Unit
     ) {
         thread {
@@ -815,6 +865,7 @@ object BancoDeDados {
                     put("origem_longitude", lngOrigem)
                     put("destino_latitude", latDestino)
                     put("destino_longitude", lngDestino)
+                    put("veiculo_tipo", veiculoTipo)
                 }
 
                 val escritor = OutputStreamWriter(conexao.outputStream)
@@ -1018,6 +1069,35 @@ object BancoDeDados {
                 }
             } catch (e: Exception) {
                 Handler(Looper.getMainLooper()).post { aoReceber(null) }
+            }
+        }
+    }
+
+    // 🟢 FUNÇÃO ADICIONADA: Altera dinamicamente o status do modo emergencial via PUT seguro com JWT
+    fun atualizarStatusCorridaEmergenteNuvem(corridaId: Int, statusAlvo: String, aoConcluir: (Boolean) -> Unit) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/corridas/emergentes/atualizar_status/$corridaId")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "PUT"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao") // Autenticação ativa do Motorista
+                conexao.doOutput = true
+
+                val json = JSONObject().apply {
+                    put("status", statusAlvo)
+                }
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                val sucesso = conexao.responseCode == 200
+                Handler(Looper.getMainLooper()).post { aoConcluir(sucesso) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post { aoConcluir(false) }
             }
         }
     }

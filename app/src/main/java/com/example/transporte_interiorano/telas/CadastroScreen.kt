@@ -30,7 +30,6 @@ import com.example.transporte_interiorano.BancoDeDados
 import com.example.transporte_interiorano.ui.theme.*
 import kotlinx.coroutines.delay
 
-// 🟢 AS MÁSCARAS QUE ESTAVAM FALTANDO FORAM REINSERIDAS AQUI:
 class CepVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val trimmed = if (text.text.length >= 8) text.text.substring(0..7) else text.text
@@ -120,9 +119,11 @@ fun CadastroScreen(
     var senha by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
 
+    var tipoVeiculo by remember { mutableStateOf("Carro") }
     var veiculo by remember { mutableStateOf("") }
     var placa by remember { mutableStateOf("") }
-    var vagas by remember { mutableStateOf("") }
+    // 🟢 ALTERAÇÃO INICIAL: Vagas agora começam com o valor pré-carregado como "4" correspondente ao tipo Carro
+    var vagas by remember { mutableStateOf("4") }
 
     var cep by remember { mutableStateOf("") }
     var rua by remember { mutableStateOf("") }
@@ -139,10 +140,10 @@ fun CadastroScreen(
     var usuarioDisponivel by remember { mutableStateOf(true) }
     val sugestoesNomes = remember { mutableStateListOf<String>() }
     var ufExpandido by remember { mutableStateOf(false) }
+    var tipoVeiculoExpandido by remember { mutableStateOf(false) }
 
     val estadosBrasil = listOf("AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO")
 
-    // Motor de sugestão de nomes automática
     LaunchedEffect(nome) {
         val nomeTratado = nome.trim()
         if (nomeTratado.contains(" ")) {
@@ -276,22 +277,13 @@ fun CadastroScreen(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
 
-            // 🟢 SUBSTITUA O BLOCO DE EXIBIÇÃO DE SUGESTÕES ANTIGO POR ESTE BLINDADO:
             if (!usuarioDisponivel && sugestoesNomes.isNotEmpty()) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = "Nome ocupado! Sugestões livres (deslize para o lado):",
-                        color = VermelhoErro,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(text = "Nome ocupado! Sugestões livres (deslize para o lado):", color = VermelhoErro, fontSize = 12.sp, fontWeight = FontWeight.Bold)
 
-                    // 🚀 A MÁGICA ESTÁ AQUI: LazyRow permite rolagem horizontal infinita sem esmagar o texto!
                     androidx.compose.foundation.lazy.LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -305,14 +297,7 @@ fun CadastroScreen(
                                     usuarioDisponivel = true
                                     sugestoesNomes.clear()
                                 },
-                                label = {
-                                    Text(
-                                        text = sugestao,
-                                        fontWeight = FontWeight.Bold,
-                                        color = AzulPrincipal,
-                                        maxLines = 1 // 🚫 IMPEDE A QUEBRA DE LINHA VERTICAL DE QUALQUER CARACTERE!
-                                    )
-                                },
+                                label = { Text(text = sugestao,   fontWeight = FontWeight.Bold, color = AzulPrincipal, maxLines = 1) },
                                 shape = RoundedCornerShape(8.dp)
                             )
                         }
@@ -340,12 +325,41 @@ fun CadastroScreen(
                     }
 
                     if (ofertarCarona) {
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        ExposedDropdownMenuBox(
+                            expanded = tipoVeiculoExpandido,
+                            onExpandedChange = { tipoVeiculoExpandido = !tipoVeiculoExpandido },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedTextField(
+                                value = tipoVeiculo, onValueChange = {}, readOnly = true, singleLine = true,
+                                label = { Text("Tipo de Veículo") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = tipoVeiculoExpandido) },
+                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                            )
+                            // 🟢 ALTERAÇÃO 1: Injeta dinamicamente as vagas predefinidas no clique da modalidade (4 para carro, 1 para moto)
+                            ExposedDropdownMenu(expanded = tipoVeiculoExpandido, onDismissRequest = { tipoVeiculoExpandido = false }) {
+                                DropdownMenuItem(text = { Text("Carro") }, onClick = { tipoVeiculo = "Carro"; vagas = "4"; tipoVeiculoExpandido = false })
+                                DropdownMenuItem(text = { Text("Moto") }, onClick = { tipoVeiculo = "Moto"; vagas = "1"; tipoVeiculoExpandido = false })
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(value = veiculo, onValueChange = { veiculo = it }, label = { Text("Modelo do Veículo") }, modifier = Modifier.fillMaxWidth())
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(value = placa, onValueChange = { placa = it.uppercase().take(7) }, label = { Text("Placa") }, modifier = Modifier.weight(1.5f), visualTransformation = PlacaVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
-                            OutlinedTextField(value = vagas, onValueChange = { vagas = it }, label = { Text("Vagas") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+
+                            // 🟢 ALTERAÇÃO 2: Campo numérico aberto e 100% editável para suportar carros de 7 lugares ou vans de 11 vagas
+                            OutlinedTextField(
+                                value = vagas,
+                                onValueChange = { vagas = it.filter { char -> char.isDigit() } },
+                                label = { Text("Vagas") },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
                         }
                     }
                 }
@@ -357,7 +371,7 @@ fun CadastroScreen(
                 Button(
                     onClick = {
                         if (!cpfJaExiste && usuarioDisponivel && username.isNotBlank()) {
-                            val veiculoFinal = if (ofertarCarona) veiculo else ""
+                            val veiculoFinal = if (ofertarCarona) "$tipoVeiculo - $veiculo" else ""
                             val placaFinal = if (ofertarCarona) placa.uppercase() else ""
                             val vagasFinal = if (ofertarCarona) vagas else "0"
 
@@ -370,7 +384,7 @@ fun CadastroScreen(
 
                 OutlinedButton(
                     onClick = {
-                        nome = ""; cpf = ""; telefone = ""; email = ""; senha = ""; username = ""; veiculo = ""; placa = ""; vagas = "";
+                        nome = ""; cpf = ""; telefone = ""; email = ""; senha = ""; username = ""; veiculo = ""; placa = ""; vagas = "4";
                         rua = ""; numero = ""; complemento = ""; bairro = ""; cidade = ""; estado = ""; cep = "";
                         ofertarCarona = false; cpfJaExiste = false; senhaVisivel = false; usuarioDisponivel = true;
                         sugestoesNomes.clear()

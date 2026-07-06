@@ -31,15 +31,48 @@ fun MinhasSolicitacoesScreen(
     aoClicarPerfil: () -> Unit,
     aoClicarVoltar: () -> Unit,
     aoClicarNovoEvento: () -> Unit,
-    aoClicarHistorico: () -> Unit
+    aoClicarHistorico: () -> Unit,
+    aoClicarEditarViagem: (Carona) -> Unit
 ) {
+    var buscandoDadosIniciais by remember { mutableStateOf(true) }
+    val escopoCorrotina = rememberCoroutineScope()
+
     LaunchedEffect(Unit) {
+        // 🟢 ALTERAÇÃO CRÍTICA (Linhas 40-48): Acesso corrigido e limpo à BASE_URL pública do BancoDeDados
+        escopoCorrotina.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val url = java.net.URL("${BancoDeDados.BASE_URL}/usuarios/alterar_modalidade")
+                val conexao = url.openConnection() as java.net.HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty("Authorization", "Bearer ${BancoDeDados.tokenSessao}")
+                conexao.doOutput = true
+
+                val json = org.json.JSONObject().apply {
+                    put("modalidade", "Programada")
+                }
+
+                val escritor = java.io.OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                // Força a leitura do response code para processar a requisição no servidor
+                conexao.responseCode
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Dispara as buscas padrão em background
         BancoDeDados.buscarCaronasDoServidor()
         BancoDeDados.buscarSolicitacoesDoServidor()
+
+        // Aguarda uma pequena janela de tempo para o servidor responder antes de remover o loading
+        kotlinx.coroutines.delay(1200)
+        buscandoDadosIniciais = false
     }
 
-    // 🟢 CORRIGIDO: Removeu o 'remember' bloqueador. Agora a filtragem lê os estados
-    // do mutableStateListOf em tempo real e atualiza a tela na mesma hora!
     val minhasCaronasOrdenadas = BancoDeDados.caronas
         .filter { it.motorista == nomeMotoristaLogado }
         .sortedByDescending { carona ->
@@ -54,18 +87,10 @@ fun MinhasSolicitacoesScreen(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Minhas Solicitações", color = AzulPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
 
-            // 🟢 MUDANÇA: Transformado em botão com Seta de Voltar para manter o fluxo
             IconButton(onClick = aoClicarVoltar) {
                 Icon(Icons.Filled.ArrowBack, contentDescription = "Voltar", tint = AzulPrincipal)
             }
         }
-
-        //Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            //Text("Minhas Solicitações", color = AzulPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            //OutlinedButton(onClick = aoClicarVoltar, shape = RoundedCornerShape(8.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), modifier = Modifier.height(36.dp)) {
-                //Text("🚪 Sair", color = VermelhoErro, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            //}
-        //}
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -76,14 +101,26 @@ fun MinhasSolicitacoesScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (minhasCaronasOrdenadas.isEmpty()) {
+        if (buscandoDadosIniciais) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = AzulPrincipal)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Sincronizando com o servidor...", color = Color.Gray, fontSize = 14.sp)
+                }
+            }
+        } else if (minhasCaronasOrdenadas.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text("Nenhum evento criado por você no momento.", color = Color.Gray)
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(minhasCaronasOrdenadas, key = { it.id }) { carona ->
-                    CartaoEventoMotorista(carona, aoExcluirComSucesso = aoClicarVoltar)
+                    CartaoEventoMotorista(
+                        carona = carona,
+                        aoExcluirComSucesso = aoClicarVoltar,
+                        aoClicarEditar = aoClicarEditarViagem
+                    )
                 }
             }
         }
@@ -111,9 +148,13 @@ fun MinhasSolicitacoesScreen(
 }
 
 @Composable
-fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
+fun CartaoEventoMotorista(
+    carona: Carona,
+    aoExcluirComSucesso: () -> Unit,
+    aoClicarEditar: (Carona) -> Unit
+) {
     val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == carona.id }
-    val totalVagas = carona.vagas.toIntOrNull() ?: 0
+    val totalVagas = carona.vagas.toIntOrNull() ?: 4
     val qtdOcupadas = pedidosDaCarona.count {
         val status = it.status.lowercase()
         status.contains("aceito") || status.contains("pendente")
@@ -139,8 +180,7 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
             Text(" Endereço: ${carona.endereco_destino}", fontSize = 12.sp, color = Color.Gray)
 
             Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-
-            Text("👥 Vagas: $vagasRestantes/$totalVagas", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao)
+            Text("👥 Vagas Livres: $vagasRestantes/$totalVagas", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao)
 
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(thickness = 1.dp, color = Color.LightGray)
@@ -161,43 +201,26 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight()
-                    .padding(bottom = 8.dp),
+                onClick = { aoClicarEditar(carona) },
+                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(bottom = 8.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                     Text("✏️ Editar Informações da Viagem", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
 
             OutlinedButton(
                 onClick = { mostrarDialogoCancelamento = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight(),
+                modifier = Modifier.fillMaxWidth().wrapContentHeight(),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = VermelhoErro),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "🛑 Cancelar Esta Viagem (Geral)",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = "🛑 Cancelar Esta Viagem (Geral)", fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 16.sp)
                 }
             }
         }
@@ -209,17 +232,8 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
             title = { Text("Justificativa do Cancelamento", fontWeight = FontWeight.Bold, color = AzulPrincipal) },
             text = {
                 Column {
-                    Text(
-                        "Informe o motivo de força maior. Todos os passageiros serão notificados e ressarcidos automaticamente.",
-                        fontSize = 14.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(bottom = 8.dp))
-                    TextField(
-                        value = motivoCancelamento,
-                        onValueChange = { motivoCancelamento = it },
-                        label = { Text("Ex: Carro quebrou / Problema de saúde") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Text("Informe o motivo de força maior. Todos os passageiros serão notificados e ressarcidos automaticamente.", fontSize = 14.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+                    TextField(value = motivoCancelamento, onValueChange = { motivoCancelamento = it }, label = { Text("Ex: Carro quebrou / Problema de saúde") }, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -227,14 +241,11 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = VermelhoErro),
                     onClick = {
                         val justificativaFinal = if (motivoCancelamento.trim().isNotEmpty()) motivoCancelamento.trim() else "Imprevisto particular do motorista"
-
-                        // 🟢 CORRIGIDO: Usa removeIf para expurgar localmente o item de forma compatível com lists do Compose
                         BancoDeDados.caronas.removeIf { it.id == carona.id }
-
                         BancoDeDados.cancelarViagemGeralMotorista(carona.id, justificativaFinal) { sucesso ->
                             if (sucesso) {
                                 escopoStatus.launch {
-                                    kotlinx.coroutines.delay(300) // Delay reduzido para resposta mais ágil
+                                    kotlinx.coroutines.delay(300)
                                     BancoDeDados.buscarCaronasDoServidor()
                                     BancoDeDados.buscarSolicitacoesDoServidor()
                                 }
@@ -254,25 +265,14 @@ fun CartaoEventoMotorista(carona: Carona, aoExcluirComSucesso: () -> Unit) {
 @Composable
 fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
     val statusLimpo = pedido.status.lowercase()
-    var mostrarMotivo by remember { mutableStateOf(false) }
-    var motivo by remember { mutableStateOf("") }
-
     if (statusLimpo.contains("expirado")) return
 
     Surface(color = Color(0xFFF9F9F9), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Text(
-                "🙋‍♂️ ${pedido.passageiro}",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = AzulPrincipal
-            )
+            Text("🙋‍♂️ ${pedido.passageiro}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = AzulPrincipal)
 
             if (statusLimpo.contains("pendente")) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Aceito") },
                         colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
@@ -282,7 +282,7 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                         Text("Aceitar", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                     Button(
-                        onClick = { mostrarMotivo = true },
+                        onClick = { BancoDeDados.responderPedidoMotorista(pedido.idReal, "Recusado") },
                         colors = ButtonDefaults.buttonColors(containerColor = VermelhoErro),
                         modifier = Modifier.weight(1f).height(40.dp),
                         contentPadding = PaddingValues(0.dp)
@@ -306,13 +306,7 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                 }
 
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                    Text(
-                        "Status: $textoStatus",
-                        color = corStatus,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    Text("Status: $textoStatus", color = corStatus, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
 
                     if (!ehFinalizado) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -341,20 +335,5 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                 }
             }
         }
-    }
-
-    if (mostrarMotivo) {
-        AlertDialog(
-            onDismissRequest = { mostrarMotivo = false },
-            title = { Text("Motivo da recusa") },
-            text = { TextField(value = motivo, onValueChange = { motivo = it }, label = { Text("Ex: Sem vagas") }) },
-            confirmButton = {
-                Button(onClick = {
-                    val statusFinal = if(motivo.isNotEmpty()) "Recusado: $motivo" else "Recusado"
-                    BancoDeDados.responderPedidoMotorista(pedido.idReal, statusFinal)
-                    mostrarMotivo = false
-                }) { Text("Confirmar") }
-            }
-        )
     }
 }

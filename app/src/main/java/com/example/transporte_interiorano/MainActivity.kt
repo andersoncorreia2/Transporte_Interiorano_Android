@@ -37,20 +37,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Solicitar permissão de notificação para Android 13 ou superior
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
             }
         }
 
-        // 🔍 TESTE DE PROVA REAL
         android.util.Log.e("DEBUG_TESTE", "O MainActivity iniciou com sucesso!")
 
-        // Inicializa seu radar existente
         BancoDeDados.ligarRadar()
 
-        // Adicione aqui a captura do token:
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 Log.d("FCM_TOKEN", "Token capturado na MainActivity: ${task.result}")
@@ -59,6 +55,9 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // 🟢 INCLUSÃO: Captura o extra enviado pela notificação push do Firebase
+        val veioDaNotificacao = intent.getStringExtra("AÇÃO_NOTIFICACAO") == "ABRIR_MAPA"
+
         setContent {
             transporte_interioranoTheme {
                 Surface(
@@ -66,21 +65,19 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
 
-                    var telaAtual by rememberSaveable { mutableStateOf("splash") }
-                    // 💡 ADICIONE LOGO ABAIXO DA VARIÁVEL 'telaAtual':
-                    var latitudeAtual by rememberSaveable { mutableStateOf(-7.9407) } // Começa em Paulista por padrão
+                    // 🟢 ALTERAÇÃO: Se veio do clique do balão, joga direto no mapa, senão vai para o fluxo padrão (splash)
+                    var telaAtual by rememberSaveable { mutableStateOf(if (veioDaNotificacao) "mapaEmergencial" else "splash") }
+
+                    var latitudeAtual by rememberSaveable { mutableStateOf(-7.9407) }
                     var longitudeAtual by rememberSaveable { mutableStateOf(-34.8728) }
                     val contextoAndroid = this@MainActivity
 
-                    // 🟢 DISPARADOR DO GPS EM TEMPO REAL CONECTADO COM OS SENSORES DO HARDWARE
                     LaunchedEffect(telaAtual) {
                         if (telaAtual == "mapaEmergencial") {
-                            // Verifica se o usuário deu a permissão de GPS no celular
                             if (ContextCompat.checkSelfPermission(contextoAndroid, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                                 val locationManager = contextoAndroid.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
 
                                 try {
-                                    // Tenta pegar a última localização conhecida rápida para não travar o mapa
                                     val ultimaLocalizacao = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
                                         ?: locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
 
@@ -89,11 +86,10 @@ class MainActivity : ComponentActivity() {
                                         longitudeAtual = it.longitude
                                     }
 
-                                    // Cria um ouvinte para atualizar a posição se a pessoa se movimentar pelo bairro
                                     locationManager.requestLocationUpdates(
                                         android.location.LocationManager.GPS_PROVIDER,
-                                        5000L, // Atualiza a cada 5 segundos
-                                        5f,    // Ou a cada 5 metros de deslocamento
+                                        5000L,
+                                        5f,
                                         object : android.location.LocationListener {
                                             override fun onLocationChanged(location: android.location.Location) {
                                                 latitudeAtual = location.latitude
@@ -108,7 +104,6 @@ class MainActivity : ComponentActivity() {
                                     Log.e("GPS_ERRO", "Erro de permissão ao ler sensores: ${e.message}")
                                 }
                             } else {
-                                // Se não tiver permissão ainda, solicita na hora abrindo a caixinha nativa do Android
                                 ActivityCompat.requestPermissions(contextoAndroid, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 200)
                             }
                         }
@@ -117,7 +112,6 @@ class MainActivity : ComponentActivity() {
                     var erroDeCadastro by rememberSaveable { mutableStateOf("") }
                     var mensagemLogin by rememberSaveable { mutableStateOf("") }
 
-                    // --- VARIÁVEIS DE ESTADO DO USUÁRIO SALVÁVEIS EM BUNDLE ---
                     var nomeLogado by rememberSaveable { mutableStateOf("") }
                     var cpfLogado by rememberSaveable { mutableStateOf("") }
                     var emailLogado by rememberSaveable { mutableStateOf("") }
@@ -136,7 +130,6 @@ class MainActivity : ComponentActivity() {
 
                     var corridasRealizadas by rememberSaveable { mutableStateOf(0) }
                     var passageirosConduzidos by rememberSaveable { mutableStateOf(0) }
-                    // ------------------------------------------
 
                     LaunchedEffect(telaAtual) {
                         if (telaAtual == "perfil" && cpfLogado.isNotEmpty()) {
@@ -152,7 +145,6 @@ class MainActivity : ComponentActivity() {
                     when (telaAtual) {
                         "splash" -> SplashScreen(
                             onTimeout = {
-                                // 🟢 SE JÁ TIVER UM USUÁRIO LOGADO, DIRECIONA PARA A ESCOLHA DE MODALIDADE
                                 telaAtual = if (cpfLogado.isNotEmpty()) {
                                     "escolhaModalidade"
                                 } else {
@@ -164,8 +156,13 @@ class MainActivity : ComponentActivity() {
                         "login" -> LoginScreen(
                             aoFazerLogin = { usernameInput, senha ->
                                 mensagemLogin = "Conectando ao servidor..."
-                                BancoDeDados.fazerLoginNuvem(usernameInput, senha) { usuarioEncontrado, erro ->
+                                BancoDeDados.fazerLoginNuvem(
+                                    usernameInput,
+                                    senha
+                                ) { usuarioEncontrado, erro ->
                                     if (usuarioEncontrado != null) {
+                                        BancoDeDados.cpfUsuarioLogado = usuarioEncontrado.cpf
+
                                         nomeLogado = usuarioEncontrado.nome
                                         cpfLogado = usuarioEncontrado.cpf
                                         emailLogado = usuarioEncontrado.email
@@ -189,10 +186,12 @@ class MainActivity : ComponentActivity() {
                                         }
 
                                         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                                            if (task.isSuccessful) enviarTokenParaServidor(usuarioEncontrado.email, task.result)
+                                            if (task.isSuccessful) enviarTokenParaServidor(
+                                                usuarioEncontrado.email,
+                                                task.result
+                                            )
                                         }
 
-                                        // 🟢 Se o login deu certo, vai direto escolher a modalidade (Uber ou Carona)
                                         telaAtual = "escolhaModalidade"
                                     } else {
                                         mensagemLogin = erro
@@ -210,11 +209,27 @@ class MainActivity : ComponentActivity() {
                         "cadastro" -> CadastroScreen(
                             aoConcluirCadastro = { nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep, username ->
                                 if (nome.isBlank() || cpf.isBlank() || telefone.isBlank() || email.isBlank() || senha.isBlank() || rua.isBlank() || numero.isBlank() || bairro.isBlank() || cidade.isBlank() || estado.isBlank() || cep.isBlank() || username.isBlank()) {
-                                    erroDeCadastro = "Preencha todos os campos obrigatórios, incluindo o endereço e usuário!"
+                                    erroDeCadastro =
+                                        "Preencha todos os campos obrigatórios, incluindo o endereço e usuário!"
                                 } else {
                                     erroDeCadastro = "Conectando ao servidor..."
                                     BancoDeDados.cadastrarUsuarioNuvem(
-                                        nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep, username
+                                        nome,
+                                        cpf,
+                                        telefone,
+                                        email,
+                                        senha,
+                                        veiculo,
+                                        placa,
+                                        vagas,
+                                        rua,
+                                        numero,
+                                        complemento,
+                                        bairro,
+                                        cidade,
+                                        estado,
+                                        cep,
+                                        username
                                     ) { sucesso, mensagem ->
                                         if (sucesso) {
                                             erroDeCadastro = ""
@@ -234,7 +249,17 @@ class MainActivity : ComponentActivity() {
 
                         "criarEvento" -> CriarEventoScreen(
                             aoPublicarEvento = { nome, cidOri, endOri, cidDes, endDes, hor, vag, cpfMotorista ->
-                                BancoDeDados.enviarCaronaParaServidor(nome, cidOri, endOri, cidDes, endDes, hor, vag, nomeLogado, cpfMotorista)
+                                BancoDeDados.enviarCaronaParaServidor(
+                                    nome,
+                                    cidOri,
+                                    endOri,
+                                    cidDes,
+                                    endDes,
+                                    hor,
+                                    vag,
+                                    nomeLogado,
+                                    cpfMotorista
+                                )
                                 BancoDeDados.temEventoAtivo = true
                                 telaAtual = "status"
                             },
@@ -249,7 +274,6 @@ class MainActivity : ComponentActivity() {
                                 telaAtual = "detalhes"
                             },
                             aoClicarVoltar = {
-                                // 🟢 MUDANÇA: A seta de voltar agora joga o passageiro para a escolha de modalidade
                                 telaAtual = "escolhaModalidade"
                             },
                             aoClicarPerfil = { telaAtual = "perfil" },
@@ -260,7 +284,8 @@ class MainActivity : ComponentActivity() {
                             cpfUsuario = cpfLogado,
                             isMotorista = veiculoLogado.isNotEmpty(),
                             aoClicarVoltar = {
-                                telaAtual = if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                                telaAtual =
+                                    if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
                             }
                         )
 
@@ -307,13 +332,51 @@ class MainActivity : ComponentActivity() {
                             isMotorista = veiculoLogado.isNotEmpty(),
                             nomeMotoristaLogado = nomeLogado,
                             aoClicarPerfil = { telaAtual = "perfil" },
-                            aoClicarVoltar = {
-                                // 🟢 MUDANÇA: A seta de voltar agora joga o motorista para a escolha de modalidade
-                                telaAtual = "escolhaModalidade"
-                            },
+                            aoClicarVoltar = { telaAtual = "escolhaModalidade" },
                             aoClicarNovoEvento = { telaAtual = "criarEvento" },
-                            aoClicarHistorico = { telaAtual = "historico" }
+                            aoClicarHistorico = { telaAtual = "historico" },
+                            aoClicarEditarViagem = { caronaClicada ->
+                                caronaSelecionada = caronaClicada
+                                telaAtual = "editarEvento"
+                            }
                         )
+
+                        "editarEvento" -> {
+                            EditarEventoScreen(
+                                caronaInfo = caronaSelecionada,
+                                aoSalvarAlteracao = { ev, cidO, endO, cidD, endD, hor, vag ->
+                                    android.util.Log.d("EDITAR_EVENTO", "MainActivity recebeu os dados. caronaSelecionada é nula? ${caronaSelecionada == null}")
+
+                                    caronaSelecionada?.let { carona ->
+                                        android.util.Log.d("EDITAR_EVENTO", "Disparando atualizarCaronaNoServidor para ID: ${carona.id}")
+
+                                        BancoDeDados.atualizarCaronaNoServidor(
+                                            id = carona.id,
+                                            nomeEvento = ev,
+                                            cidadeOrigem = cidO,
+                                            enderecoOrigem = endO,
+                                            cidadeDestino = cidD,
+                                            enderecoDestino = endD,
+                                            horario = hor,
+                                            vagas = vag,
+                                            aoConcluir = { sucesso ->
+                                                android.util.Log.d("EDITAR_EVENTO", "Resposta do servidor recebida. Sucesso = $sucesso")
+
+                                                if (sucesso) {
+                                                    BancoDeDados.buscarCaronasDoServidor()
+                                                    telaAtual = "status"
+                                                } else {
+                                                    android.util.Log.e("EDITAR_EVENTO", "O servidor rejeitou a atualização (Código diferente de 200)")
+                                                }
+                                            }
+                                        )
+                                    }
+                                },
+                                aoClicarVoltar = {
+                                    telaAtual = "status"
+                                }
+                            )
+                        }
 
                         "perfil" -> {
                             val formatador = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
@@ -392,19 +455,15 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // 🟢 NOVA ROTA DE DIRECIONAMENTO ADICIONADA COM SUCESSO
-                        // 🟢 MUDANÇA: Passando o gatilho do botão "X" para deslogar de dentro do gerenciador de modalidades
                         "escolhaModalidade" -> EscolhaModalidadeScreen(
                             onModalidadeSelecionada = { modalidade ->
                                 if (modalidade == "Programada") {
                                     telaAtual = if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
                                 } else {
-                                    // 🟢 ALTERADO: Direciona para a nova tela do mapa de forma síncrona
                                     telaAtual = "mapaEmergencial"
                                 }
                             },
                             onClicarFecharGeral = {
-                                // 🟢 LÓGICA DE LOGOUT COMPLETA: Limpa os estados locais e joga no Login
                                 veiculoLogado = ""
                                 nomeLogado = ""
                                 emailLogado = ""
@@ -416,15 +475,13 @@ class MainActivity : ComponentActivity() {
                             }
                         )
 
-                        // 🟢 ADICIONADO: ROTA COMPLETA DO MODO EMERGENCIAL INTEGRADA COM O RENDER
-                        // 🟢 ALTERAÇÃO PARA GPS REAL (Sem simulações fixas de +0.015)
                         "mapaEmergencial" -> MapaEmergencialScreen(
                             isMotorista = veiculoLogado.isNotEmpty(),
-                            latitudeAtual = latitudeAtual,   // 🟢 Repassa a latitude real capturada pelo celular
-                            longitudeAtual = longitudeAtual, // 🟢 Repassa a longitude real capturada pelo celular
+                            latitudeAtual = latitudeAtual,
+                            longitudeAtual = longitudeAtual,
                             aoClicarVoltar = { telaAtual = "escolhaModalidade" },
-                            aoChamarMotorista = { destinoDigitado, aoConfirmarIdNaTela ->
-                                // 📡 GPS REAL: Descobre o endereço de texto exato de onde o passageiro está pisando agora
+                            // 🟢 ALTERAÇÃO: Lambda adaptada para receber 3 parâmetros (destino, tipo de veículo, callback de ID)
+                            aoChamarMotorista = { destinoDigitado, tipoVeiculo, aoConfirmarIdNaTela ->
                                 kotlin.concurrent.thread {
                                     try {
                                         val urlOrigem = URL("https://nominatim.openstreetmap.org/reverse?lat=$latitudeAtual&lon=$longitudeAtual&format=json")
@@ -437,7 +494,6 @@ class MainActivity : ComponentActivity() {
                                             enderecoPartidaReal = JSONObject(resp).optString("display_name", enderecoPartidaReal)
                                         }
 
-                                        // 📡 Descobre as coordenadas reais do destino digitado
                                         val queryCodificada = java.net.URLEncoder.encode(destinoDigitado, "UTF-8")
                                         val urlDestino = URL("https://nominatim.openstreetmap.org/search?q=$queryCodificada&format=json&limit=1")
                                         val conexaoDestino = urlDestino.openConnection() as java.net.HttpURLConnection
@@ -452,7 +508,7 @@ class MainActivity : ComponentActivity() {
                                                 val latDestinoReal = local.getDouble("lat")
                                                 val lngDestinoReal = local.getDouble("lon")
 
-                                                // Envia os dados 100% dinâmicos coletados pelos sensores em tempo real
+                                                // Envia o tipoVeiculo coletado diretamente da tela
                                                 BancoDeDados.criarCorridaEmergenteNuvem(
                                                     enderecoOrigem = enderecoPartidaReal,
                                                     enderecoDestino = destinoDigitado,
@@ -460,18 +516,22 @@ class MainActivity : ComponentActivity() {
                                                     lngOrigem = longitudeAtual,
                                                     latDestino = latDestinoReal,
                                                     lngDestino = lngDestinoReal,
+                                                    veiculoTipo = tipoVeiculo, // 🟢 Passa o tipo aqui!
                                                     aoConcluir = { sucesso, mensagemServidor, idCorridaReal ->
-                                                        // 🟢 CORREÇÃO: Força a atualização do estado visual do Compose dentro da Thread de UI
                                                         contextoAndroid.runOnUiThread {
                                                             if (sucesso) {
                                                                 Toast.makeText(contextoAndroid, "⚡ $mensagemServidor", Toast.LENGTH_LONG).show()
-                                                                idCorridaReal?.let { aoConfirmarIdNaTela(it) } // Transiciona a tela do passageiro imediatamente!
+                                                                idCorridaReal?.let { aoConfirmarIdNaTela(it) }
                                                             } else {
                                                                 Toast.makeText(contextoAndroid, "❌ $mensagemServidor", Toast.LENGTH_SHORT).show()
                                                             }
                                                         }
                                                     }
                                                 )
+                                            } else {
+                                                contextoAndroid.runOnUiThread {
+                                                    Toast.makeText(contextoAndroid, "❌ Endereço de destino não localizado no mapa.", Toast.LENGTH_LONG).show()
+                                                }
                                             }
                                         }
                                     } catch (e: Exception) {
@@ -498,7 +558,8 @@ class MainActivity : ComponentActivity() {
     fun enviarTokenParaServidor(email: String, token: String) {
         thread {
             try {
-                val url = URL("https://transporte-interiorano-backend.onrender.com/registrar_token")
+                //val url = URL("https://transporte-interiorano-backend.onrender.com/registrar_token")
+                val url = URL("${BancoDeDados.BASE_URL}/registrar_token")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
