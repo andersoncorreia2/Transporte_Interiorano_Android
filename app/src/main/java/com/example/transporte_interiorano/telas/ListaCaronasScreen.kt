@@ -32,6 +32,32 @@ fun ListaCaronasScreen(
     aoClicarPerfil: () -> Unit,
     aoClicarHistorico: () -> Unit
 ) {
+    // 🟢 ALTERAÇÃO CRÍTICA: Quando o passageiro entra na listagem programada, sincroniza o status dele para 'Programada'
+    LaunchedEffect(Unit) {
+        kotlin.concurrent.thread {
+            try {
+                val url = java.net.URL("${BancoDeDados.BASE_URL}/usuarios/alterar_modalidade")
+                val conexao = url.openConnection() as java.net.HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty("Authorization", "Bearer ${BancoDeDados.tokenSessao}")
+                conexao.doOutput = true
+
+                val json = org.json.JSONObject().apply {
+                    put("modalidade", "Programada")
+                }
+
+                val escritor = java.io.OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                conexao.responseCode
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(

@@ -55,7 +55,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // 🟢 INCLUSÃO: Captura o extra enviado pela notificação push do Firebase
         val veioDaNotificacao = intent.getStringExtra("AÇÃO_NOTIFICACAO") == "ABRIR_MAPA"
 
         setContent {
@@ -65,11 +64,18 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
 
-                    // 🟢 ALTERAÇÃO: Se veio do clique do balão, joga direto no mapa, senão vai para o fluxo padrão (splash)
                     var telaAtual by rememberSaveable { mutableStateOf(if (veioDaNotificacao) "mapaEmergencial" else "splash") }
 
                     var latitudeAtual by rememberSaveable { mutableStateOf(-7.9407) }
                     var longitudeAtual by rememberSaveable { mutableStateOf(-34.8728) }
+
+                    // 🟢 ESTADOS PERSISTENTES DA SESSÃO GLOBAL ELEVADOS COM SUCESSO
+                    var motoristaOnlineGlobal by rememberSaveable { mutableStateOf(false) }
+                    var corridaCriadaIdGlobal by rememberSaveable { mutableStateOf<Int?>(null) }
+                    var corridaAceitaMotoristaGlobalStr by rememberSaveable { mutableStateOf<String?>(null) }
+                    // 🟢 ADICIONADO: Mantém o tempo restante do cronômetro persistente na raiz do app
+                    var tempoCancelamentoGlobal by rememberSaveable { mutableStateOf(180) }
+
                     val contextoAndroid = this@MainActivity
 
                     LaunchedEffect(telaAtual) {
@@ -110,7 +116,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     var erroDeCadastro by rememberSaveable { mutableStateOf("") }
-                    var mensagemLogin by rememberSaveable { mutableStateOf("") }
+                    var messageLogin by rememberSaveable { mutableStateOf("") }
 
                     var nomeLogado by rememberSaveable { mutableStateOf("") }
                     var cpfLogado by rememberSaveable { mutableStateOf("") }
@@ -155,7 +161,7 @@ class MainActivity : ComponentActivity() {
 
                         "login" -> LoginScreen(
                             aoFazerLogin = { usernameInput, senha ->
-                                mensagemLogin = "Conectando ao servidor..."
+                                messageLogin = "Conectando ao servidor..."
                                 BancoDeDados.fazerLoginNuvem(
                                     usernameInput,
                                     senha
@@ -178,7 +184,7 @@ class MainActivity : ComponentActivity() {
                                         estadoLogado = usuarioEncontrado.estado
                                         cepLogado = usuarioEncontrado.cep
                                         usuarioLogado = usuarioEncontrado.usuario
-                                        mensagemLogin = ""
+                                        messageLogin = ""
 
                                         BancoDeDados.buscarMétricasPorCpf(usuarioEncontrado.cpf) { corridas, pass ->
                                             corridasRealizadas = corridas
@@ -194,16 +200,16 @@ class MainActivity : ComponentActivity() {
 
                                         telaAtual = "escolhaModalidade"
                                     } else {
-                                        mensagemLogin = erro
+                                        messageLogin = erro
                                     }
                                 }
                             },
                             aoClicarCriarConta = {
                                 erroDeCadastro = ""
-                                mensagemLogin = ""
+                                messageLogin = ""
                                 telaAtual = "cadastro"
                             },
-                            mensagemErro = mensagemLogin
+                            mensagemErro = messageLogin
                         )
 
                         "cadastro" -> CadastroScreen(
@@ -460,6 +466,30 @@ class MainActivity : ComponentActivity() {
                                 if (modalidade == "Programada") {
                                     telaAtual = if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
                                 } else {
+                                    kotlin.concurrent.thread {
+                                        try {
+                                            val url = URL("${BancoDeDados.BASE_URL}/usuarios/alterar_modalidade")
+                                            val conexao = url.openConnection() as java.net.HttpURLConnection
+                                            conexao.requestMethod = "POST"
+                                            conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                                            conexao.setRequestProperty("Authorization", "Bearer ${BancoDeDados.tokenSessao}")
+                                            conexao.doOutput = true
+
+                                            val json = JSONObject().apply {
+                                                put("modalidade", "Emergencial")
+                                            }
+
+                                            val escritor = java.io.OutputStreamWriter(conexao.outputStream)
+                                            escritor.write(json.toString())
+                                            escritor.flush()
+                                            escritor.close()
+
+                                            conexao.responseCode
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                    }
+
                                     telaAtual = "mapaEmergencial"
                                 }
                             },
@@ -479,9 +509,12 @@ class MainActivity : ComponentActivity() {
                             isMotorista = veiculoLogado.isNotEmpty(),
                             latitudeAtual = latitudeAtual,
                             longitudeAtual = longitudeAtual,
+                            motoristaOnlineGlobal = motoristaOnlineGlobal,
+                            corridaCriadaIdGlobal = corridaCriadaIdGlobal,
+                            corridaAceitaMotoristaGlobalStr = corridaAceitaMotoristaGlobalStr, // 🟢 PASSA A STRING DA CORRIDA DO MOTORISTA
+                            tempoCancelamentoGlobal = tempoCancelamentoGlobal, // 🟢 ADICIONADO: Envia o tempo atual para a tela
                             aoClicarVoltar = { telaAtual = "escolhaModalidade" },
-                            // 🟢 ALTERAÇÃO: Lambda adaptada para receber 3 parâmetros (destino, tipo de veículo, callback de ID)
-                            aoChamarMotorista = { destinoDigitado, tipoVeiculo, aoConfirmarIdNaTela ->
+                            aoChamarMotorista = { destinoDigitado, tipoVeiculoSelecionado, aoConfirmarIdNaTela ->
                                 kotlin.concurrent.thread {
                                     try {
                                         val urlOrigem = URL("https://nominatim.openstreetmap.org/reverse?lat=$latitudeAtual&lon=$longitudeAtual&format=json")
@@ -508,7 +541,6 @@ class MainActivity : ComponentActivity() {
                                                 val latDestinoReal = local.getDouble("lat")
                                                 val lngDestinoReal = local.getDouble("lon")
 
-                                                // Envia o tipoVeiculo coletado diretamente da tela
                                                 BancoDeDados.criarCorridaEmergenteNuvem(
                                                     enderecoOrigem = enderecoPartidaReal,
                                                     enderecoDestino = destinoDigitado,
@@ -516,11 +548,12 @@ class MainActivity : ComponentActivity() {
                                                     lngOrigem = longitudeAtual,
                                                     latDestino = latDestinoReal,
                                                     lngDestino = lngDestinoReal,
-                                                    veiculoTipo = tipoVeiculo, // 🟢 Passa o tipo aqui!
+                                                    veiculoTipo = tipoVeiculoSelecionado,
                                                     aoConcluir = { sucesso, mensagemServidor, idCorridaReal ->
                                                         contextoAndroid.runOnUiThread {
                                                             if (sucesso) {
                                                                 Toast.makeText(contextoAndroid, "⚡ $mensagemServidor", Toast.LENGTH_LONG).show()
+                                                                corridaCriadaIdGlobal = idCorridaReal
                                                                 idCorridaReal?.let { aoConfirmarIdNaTela(it) }
                                                             } else {
                                                                 Toast.makeText(contextoAndroid, "❌ $mensagemServidor", Toast.LENGTH_SHORT).show()
@@ -539,12 +572,48 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             },
-                            aoFicarDisponivelMotorista = {
-                                BancoDeDados.ficarOnlineRadarMotorista { sucesso, mensagemServidor ->
-                                    if (sucesso) {
-                                        Toast.makeText(contextoAndroid, "🟢 $mensagemServidor", Toast.LENGTH_LONG).show()
-                                    } else {
-                                        Toast.makeText(contextoAndroid, "❌ $mensagemServidor", Toast.LENGTH_SHORT).show()
+                            aoLimparCorridaGlobal = {
+                                corridaCriadaIdGlobal = null
+                                tempoCancelamentoGlobal = 180 // 🟢 ADICIONADO: Reseta o cronômetro persistente quando a corrida fecha
+                            },
+                            // 🟢 ADICIONADO: Sincroniza cada segundo regredido com o estado da MainActivity
+                            aoAtualizarTempoCancelamentoGlobal = { tempoRestante ->
+                                tempoCancelamentoGlobal = tempoRestante
+                            },
+                            aoAtualizarCorridaAceitaMotoristaGlobal = { jsonStr ->
+                                corridaAceitaMotoristaGlobalStr = jsonStr // 🟢 CONTROLA O SALVAMENTO REATIVO DA CORRIDA DO MOTORISTA
+                            },
+                            aoAlternarDisponibilidadeMotorista = { ficarOnline ->
+                                motoristaOnlineGlobal = ficarOnline
+                                val modalidadeAlvo = if (ficarOnline) "Emergencial" else "Programada"
+
+                                kotlin.concurrent.thread {
+                                    try {
+                                        val url = URL("${BancoDeDados.BASE_URL}/usuarios/alterar_modalidade")
+                                        val conexao = url.openConnection() as java.net.HttpURLConnection
+                                        conexao.requestMethod = "POST"
+                                        conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                                        conexao.setRequestProperty("Authorization", "Bearer ${BancoDeDados.tokenSessao}")
+                                        conexao.doOutput = true
+
+                                        val json = JSONObject().apply { put("modalidade", modalidadeAlvo) }
+                                        val escritor = java.io.OutputStreamWriter(conexao.outputStream)
+                                        escritor.write(json.toString())
+                                        escritor.flush()
+                                        escritor.close()
+
+                                        val codigoHttp = conexao.responseCode
+                                        contextoAndroid.runOnUiThread {
+                                            if (codigoHttp == 200) {
+                                                val msg = if (ficarOnline) "Radar ativado! Modo Emergencial ativo 🟢" else "Radar desativado! Modo Programado ativo 🔴"
+                                                Toast.makeText(contextoAndroid, msg, Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                motoristaOnlineGlobal = !ficarOnline
+                                                Toast.makeText(contextoAndroid, "Erro de sincronização com o servidor.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
                                     }
                                 }
                             }
@@ -558,7 +627,6 @@ class MainActivity : ComponentActivity() {
     fun enviarTokenParaServidor(email: String, token: String) {
         thread {
             try {
-                //val url = URL("https://transporte-interiorano-backend.onrender.com/registrar_token")
                 val url = URL("${BancoDeDados.BASE_URL}/registrar_token")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"

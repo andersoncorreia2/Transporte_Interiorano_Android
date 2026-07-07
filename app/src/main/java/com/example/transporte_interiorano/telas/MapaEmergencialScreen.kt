@@ -54,38 +54,83 @@ fun MapaEmergencialScreen(
     isMotorista: Boolean,
     latitudeAtual: Double,
     longitudeAtual: Double,
+    motoristaOnlineGlobal: Boolean,
+    corridaCriadaIdGlobal: Int?,
+    corridaAceitaMotoristaGlobalStr: String?, // 🟢 Injeção do objeto de corrida persistido do motorista
+    tempoCancelamentoGlobal: Int, // 🟢 ADICIONADO: Recebe o tempo sintonizado
     aoClicarVoltar: () -> Unit,
-    aoChamarMotorista: (String, String, (Int) -> Unit) -> Unit,
-    aoFicarDisponivelMotorista: () -> Unit
+    aoChamarMotorista: (String, String, (Int) -> Unit) -> Unit, // 🟢 Sincronizado com os 3 parâmetros da MainActivity
+    aoLimparCorridaGlobal: () -> Unit,
+    aoAtualizarTempoCancelamentoGlobal: (Int) -> Unit, // 🟢 ADICIONADO: Notifica a regressão de segundos
+    aoAtualizarCorridaAceitaMotoristaGlobal: (String?) -> Unit, // 🟢 Callback para persistência na MainActivity
+    aoAlternarDisponibilidadeMotorista: (Boolean) -> Unit
 ) {
     val contexto = LocalContext.current
     val escopoCorrotina = rememberCoroutineScope()
+
+    val dispararNotificacaoComSom = { titulo: String, mensagem: String ->
+        val notificationManager = contexto.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val canalId = "notificacoes_emergentes"
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val canal = android.app.NotificationChannel(canalId, "Alertas Emergenciais", android.app.NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Canal para notificações sonoras de corridas emergenciais"
+                enableLights(true)
+                lightColor = android.graphics.Color.RED
+                enableVibration(true)
+                setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION), null)
+            }
+            notificationManager.createNotificationChannel(canal)
+        }
+
+        // 🟢 ADICIONADO CIRURGICAMENTE: Configura o clique para reabrir a MainActivity aproveitando a instância viva
+        val intentCliqueLocal = android.content.Intent(contexto, com.example.transporte_interiorano.MainActivity::class.java).apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("AÇÃO_NOTIFICACAO", "ABRIR_MAPA")
+        }
+
+        val pendingIntentLocal = android.app.PendingIntent.getActivity(
+            contexto,
+            kotlin.random.Random.nextInt(),
+            intentCliqueLocal,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val construtor = androidx.core.app.NotificationCompat.Builder(contexto, canalId)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(titulo)
+            .setContentText(mensagem)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+            .setCategory(androidx.core.app.NotificationCompat.CATEGORY_ALARM)
+            .setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION))
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntentLocal) // 🟢 ADICIONADO CIRURGICAMENTE: Vincula a ação de clique segura ao construtor
+
+        if (androidx.core.content.ContextCompat.checkSelfPermission(contexto, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            notificationManager.notify(System.currentTimeMillis().toInt(), construtor.build())
+        }
+    }
 
     LaunchedEffect(Unit) {
         Configuration.getInstance().userAgentValue = contexto.packageName
     }
 
     var mapaRef by remember { mutableStateOf<MapView?>(null) }
-
     var enderecoOrigem by remember { mutableStateOf("") }
     var enderecoDestino by remember { mutableStateOf("") }
     val paradasExtras = remember { mutableStateListOf<String>() }
-
     var tipoVeiculoSelecionado by remember { mutableStateOf("Carro") }
 
     val sugestoes = remember { mutableStateListOf<String>() }
     var expandido by remember { mutableStateOf(false) }
     var localidadeIdentificadaReal by remember { mutableStateOf("sua região") }
-
     var painelMinimizado by remember { mutableStateOf(false) }
 
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
-
     var primeiraCentralizacaoRealizada by remember { mutableStateOf(false) }
     var deixarCameraLivrePassageiro by remember { mutableStateOf(false) }
 
-    // 🟢 LISTA DE CHAMADOS RECUSADOS (Para sumir na hora sem esperar o tempo regressivo)
     val chamadosRecusadosIds = remember { mutableStateListOf<Int>() }
 
     LaunchedEffect(latitudeAtual, longitudeAtual) {
@@ -122,14 +167,26 @@ fun MapaEmergencialScreen(
         }
     }
 
-    var motoristaOnline by remember { mutableStateOf(false) }
     val chamadosDisponiveis = BancoDeDados.corridasEmergentesDisponiveis
-    var corridaAceitaPeloMotoristaReal by remember { mutableStateOf<JSONObject?>(null) }
 
-    var corridaCriadaId by remember { mutableStateOf<Int?>(null) }
+    // 🟢 SINCRO RECUPERADA: Se o motorista reabrir a tela, o JSON reativo é remontado síncronamente a partir da MainActivity
+    var corridaAceitaPeloMotoristaReal by remember {
+        mutableStateOf(corridaAceitaMotoristaGlobalStr?.let { JSONObject(it) })
+    }
 
-    var tempoToleranciaCancelamento by remember { mutableStateOf(180) }
+    var corridaCriadaId by remember { mutableStateOf(corridaCriadaIdGlobal) }
+    LaunchedEffect(corridaCriadaIdGlobal) {
+        corridaCriadaId = corridaCriadaIdGlobal
+    }
+
+    // 🟢 ALTERADO: Inicializa amarrado ao tempo atualizado vindo da MainActivity
+    var tempoToleranciaCancelamento by remember { mutableStateOf(tempoCancelamentoGlobal) }
+    LaunchedEffect(tempoCancelamentoGlobal) {
+        tempoToleranciaCancelamento = tempoCancelamentoGlobal
+    }
+
     var tempoEstimadoTexto by remember { mutableStateOf("Calculando rota...") }
+    var statusCorridaPassageiro by remember { mutableStateOf("Procurando") }
 
     LaunchedEffect(enderecoDestino) {
         if (enderecoDestino.trim().length >= 3 && expandido) {
@@ -143,24 +200,34 @@ fun MapaEmergencialScreen(
         }
     }
 
-    LaunchedEffect(isMotorista, motoristaOnline, corridaAceitaPeloMotoristaReal) {
-        if (isMotorista && motoristaOnline) {
+    LaunchedEffect(isMotorista, motoristaOnlineGlobal, corridaAceitaPeloMotoristaReal) {
+        if (isMotorista && motoristaOnlineGlobal) {
+            var totalChamadosAnterior = 0
             while (true) {
                 if (corridaAceitaPeloMotoristaReal == null) {
-                    BancoDeDados.buscarCorridasEmergentesDoServidor { _ -> }
+                    BancoDeDados.buscarCorridasEmergentesDoServidor { sucesso ->
+                        if (sucesso) {
+                            val chamadosAtuais = BancoDeDados.corridasEmergentesDisponiveis.size
+                            if (chamadosAtuais > totalChamadosAnterior) {
+                                dispararNotificacaoComSom("🚨 NOVO CHAMADO DETECTADO!", "Há uma nova solicitação de corrida emergente no seu radar!")
+                            }
+                            totalChamadosAnterior = chamadosAtuais
+                        }
+                    }
                 }
                 delay(4000)
             }
         }
     }
 
-    var statusCorridaPassageiro by remember { mutableStateOf("Procurando") }
-
-    LaunchedEffect(corridaCriadaId) {
-        if (corridaCriadaId != null) {
-            while (tempoToleranciaCancelamento > 0) {
+    // 🟢 CRONÔMETRO REESTRUTURADO: Executa a regressão segundo a segundo e salva na MainActivity
+    LaunchedEffect(corridaCriadaId, statusCorridaPassageiro, tempoToleranciaCancelamento) {
+        if (corridaCriadaId != null && statusCorridaPassageiro == "Aceita") {
+            if (tempoToleranciaCancelamento > 0) {
                 delay(1000)
-                tempoToleranciaCancelamento--
+                val proximoSegundo = tempoToleranciaCancelamento - 1
+                tempoToleranciaCancelamento = proximoSegundo
+                aoAtualizarTempoCancelamentoGlobal(proximoSegundo) // 🟢 Grava síncronamente na MainActivity
             }
         }
     }
@@ -257,14 +324,31 @@ fun MapaEmergencialScreen(
     var motoristaVinculadoTexto by remember { mutableStateOf("") }
 
     LaunchedEffect(corridaCriadaId) {
-        if (corridaCriadaId != null) {
+        val idFixo = corridaCriadaId
+        if (idFixo != null) {
             while (true) {
-                BancoDeDados.buscarStatusCorridaNuvem(corridaCriadaId!!) { dadosCorrida ->
+                BancoDeDados.buscarStatusCorridaNuvem(idFixo) { dadosCorrida ->
                     if (dadosCorrida != null) {
                         val statusMestre = dadosCorrida.optString("status", "Procurando")
+
+                        if (statusMestre != statusCorridaPassageiro) {
+                            when (statusMestre) {
+                                "Aceita" -> dispararNotificacaoComSom("✅ Corrida Aceita!", "O motorista já está a caminho do seu local!")
+                                "Em Viagem" -> dispararNotificacaoComSom("🚗 Boa Viagem!", "O motorista iniciou o trajeto até o destino final.")
+                                "Finalizada" -> dispararNotificacaoComSom("🏁 Corrida Concluída!", "Você chegou ao seu destino com segurança.")
+                                "Cancelada" -> dispararNotificacaoComSom("🛑 Corrida Cancelada", "O chamado emergencial foi encerrado.")
+                            }
+                        }
+
                         statusCorridaPassageiro = statusMestre
 
-                        if (statusMestre == "Aceita") {
+                        if (statusMestre == "Cancelada" || statusMestre == "Expirada") {
+                            corridaCriadaId = null
+                            aoLimparCorridaGlobal()
+                            statusCorridaPassageiro = "Procurando"
+                            motoristaVinculadoTexto = ""
+                            mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
+                        } else if (statusMestre == "Aceita") {
                             val nomeMot = dadosCorrida.optString("motorista_nome", "Parceiro")
                             val veiculoMot = dadosCorrida.optString("veiculo", "Carro")
                             val placaMot = dadosCorrida.optString("placa", "---")
@@ -300,6 +384,7 @@ fun MapaEmergencialScreen(
                             Toast.makeText(contexto, " Sua corrida foi finalizada com sucesso!", Toast.LENGTH_LONG).show()
 
                             corridaCriadaId = null
+                            aoLimparCorridaGlobal()
                             statusCorridaPassageiro = "Procurando"
                             motoristaVinculadoTexto = ""
                             deixarCameraLivrePassageiro = false
@@ -316,6 +401,12 @@ fun MapaEmergencialScreen(
                             mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }
                             mapaRef?.invalidate()
                         }
+                    } else {
+                        corridaCriadaId = null
+                        aoLimparCorridaGlobal()
+                        statusCorridaPassageiro = "Procurando"
+                        motoristaVinculadoTexto = ""
+                        mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
                     }
                 }
                 delay(3000)
@@ -323,7 +414,6 @@ fun MapaEmergencialScreen(
         }
     }
 
-    // 🟢 BLINDAGEM DO LOOP DO MOTORISTA (Garante que se o passageiro cancelar, o app não fecha e desatrela o motorista)
     LaunchedEffect(corridaAceitaPeloMotoristaReal) {
         if (corridaAceitaPeloMotoristaReal != null) {
             val idCorridaMonitorada = corridaAceitaPeloMotoristaReal!!.optInt("id", 0)
@@ -332,17 +422,22 @@ fun MapaEmergencialScreen(
                 BancoDeDados.buscarStatusCorridaNuvem(idCorridaMonitorada) { dados ->
                     try {
                         if (dados == null || dados.optString("status") == "Cancelada" || dados.optString("status") == "Procurando") {
-                            Toast.makeText(contexto, "⚠️ Esta corrida foi cancelada ou reaberta pelo passageiro.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(contexto, "⚠️ Esta corrida foi cancelada pelo passageiro.", Toast.LENGTH_LONG).show()
                             corridaAceitaPeloMotoristaReal = null
-                            mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }
-                            mapaRef?.invalidate()
+                            aoAtualizarCorridaAceitaMotoristaGlobal(null) // 🟢 Limpa da MainActivity
+                            mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
                         } else {
-                            // Atualiza o estado visual em tempo real se houver modificações legítimas
-                            corridaAceitaPeloMotoristaReal = dados
+                            val novoStatus = dados.optString("status", "Aceita")
+                            val jsonAtualizado = JSONObject(corridaAceitaPeloMotoristaReal.toString())
+                            jsonAtualizado.put("status", novoStatus)
+
+                            corridaAceitaPeloMotoristaReal = jsonAtualizado
+                            aoAtualizarCorridaAceitaMotoristaGlobal(jsonAtualizado.toString()) // 🟢 Sincroniza o status persistentemente
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
                         corridaAceitaPeloMotoristaReal = null
+                        aoAtualizarCorridaAceitaMotoristaGlobal(null)
                     }
                 }
             }
@@ -352,11 +447,11 @@ fun MapaEmergencialScreen(
     LaunchedEffect(corridaAceitaPeloMotoristaReal, latitudeAtual, longitudeAtual) {
         if (corridaAceitaPeloMotoristaReal != null) {
             val corridaAtiva = corridaAceitaPeloMotoristaReal!!
-            val statusInterno = corridaAtiva.optString("status", "Aceita")
+            val statusInternal = corridaAtiva.optString("status", "Aceita")
             val latPassageiro = corridaAtiva.optDouble("origem_latitude")
             val lngPassageiro = corridaAtiva.optDouble("origem_longitude")
 
-            if (statusInterno != "Em Viagem") {
+            if (statusInternal != "Em Viagem") {
                 tracarRotaNoMapa(
                     latOri = latitudeAtual, lngOri = longitudeAtual,
                     latDes = latPassageiro, lngDes = lngPassageiro,
@@ -566,44 +661,57 @@ fun MapaEmergencialScreen(
                             Text(text = "Tempo estimado de chegada: $tempoEstimadoTexto", fontSize = 13.sp, color = Color.DarkGray, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
 
                             if (statusCorridaPassageiro != "Em Viagem") {
-                                val minutosRegressivos = tempoToleranciaCancelamento / 60
-                                val segundosRegressivos = tempoToleranciaCancelamento % 60
-                                val formatoCronometro = String.format("%02d:%02d", minutosRegressivos, segundosRegressivos)
+                                if (statusCorridaPassageiro == "Aceita") {
+                                    val minutosRegressivos = tempoToleranciaCancelamento / 60
+                                    val segundosRegressivos = tempoToleranciaCancelamento % 60
+                                    val formatoCronometro = String.format("%02d:%02d", minutosRegressivos, segundosRegressivos)
 
-                                if (tempoToleranciaCancelamento > 0) {
-                                    Text(text = "Tempo limite para cancelamento gratuito: $formatoCronometro", fontSize = 12.sp, color = if (tempoToleranciaCancelamento > 30) Color.Gray else Color.Red, fontWeight = FontWeight.Bold)
+                                    if (tempoToleranciaCancelamento > 0) {
+                                        Text(text = "Tempo limite para cancelamento gratuito: $formatoCronometro", fontSize = 12.sp, color = if (tempoToleranciaCancelamento > 30) Color.Gray else Color.Red, fontWeight = FontWeight.Bold)
+                                    } else {
+                                        Text(text = "⚠️ O cancelamento agora poderá gerar taxas de deslocamento.", fontSize = 12.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                                    }
                                 } else {
-                                    Text(text = "⚠️ O cancelamento agora poderá gerar taxas de deslocamento.", fontSize = 12.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                                    Text(text = "Aguardando aceitação do chamado no radar...", fontSize = 12.sp, color = Color.Gray)
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
 
                                 Button(
                                     onClick = {
-                                        BancoDeDados.cancelarCorridaEmergentePassageiro(corridaCriadaId!!) { sucesso ->
-                                            if (sucesso) {
-                                                Toast.makeText(contexto, "Corrida cancelada pelo passageiro.", Toast.LENGTH_SHORT).show()
-                                                corridaCriadaId = null
-                                                tempoToleranciaCancelamento = 180
-                                                enderecoOrigem = ""
-                                                enderecoDestino = ""
-                                                paradasExtras.clear()
-                                                mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
+                                        val idAtual = corridaCriadaId
+                                        if (idAtual != null) {
+                                            BancoDeDados.cancelarCorridaEmergentePassageiro(idAtual) { sucesso ->
+                                                if (sucesso) {
+                                                    Toast.makeText(contexto, "Corrida cancelada pelo passageiro.", Toast.LENGTH_SHORT).show()
+                                                    corridaCriadaId = null
+                                                    aoLimparCorridaGlobal()
+                                                    tempoToleranciaCancelamento = 180
+                                                    enderecoOrigem = ""
+                                                    enderecoDestino = ""
+                                                    paradasExtras.clear()
+                                                    mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
+                                                }
                                             }
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
                                     modifier = Modifier.fillMaxWidth().height(44.dp),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(size = 8.dp)
                                 ) { Text("Cancelar Corrida ❌", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
                             }
                         }
                     }
                 } else {
-                    if (!motoristaOnline) {
+                    if (!motoristaOnlineGlobal) {
                         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(text = "Central de Operações", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
                             Text(text = "Fique online para receber solicitações de corridas emergenciais na sua proximidade em $localidadeIdentificadaReal.", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
-                            Button(onClick = { motoristaOnline = true; aoFicarDisponivelMotorista() }, colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal), modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(8.dp)) { Text("Ficar Disponível (Ficar Online) 🟢", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+                            Button(
+                                onClick = { aoAlternarDisponibilidadeMotorista(true) },
+                                colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) { Text("Ficar Disponível (Ficar Online) 🟢", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
                         }
                     } else {
                         if (corridaAceitaPeloMotoristaReal != null) {
@@ -634,7 +742,7 @@ fun MapaEmergencialScreen(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Box(modifier = Modifier.size(14.dp).background(Color(0xFF7CB342), CircleShape))
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text(text = "Modo Radar Ativo", fontSize = 16.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                            Text(text = "Radar Ativo", fontSize = 16.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
                                         }
 
                                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -686,6 +794,7 @@ fun MapaEmergencialScreen(
                                                 BancoDeDados.atualizarStatusCorridaEmergenteNuvem(idCorrida, "Finalizada") { sucesso ->
                                                     if (sucesso) {
                                                         corridaAceitaPeloMotoristaReal = null
+                                                        aoAtualizarCorridaAceitaMotoristaGlobal(null) // 🟢 Limpa globalmente
                                                         BancoDeDados.corridasEmergentesDisponiveis.clear()
                                                         mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
                                                         Toast.makeText(contexto, "Corrida concluída com sucesso!", Toast.LENGTH_SHORT).show()
@@ -701,11 +810,27 @@ fun MapaEmergencialScreen(
                             }
                         } else {
                             Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                // 🟢 ALTERAÇÃO DO RADAR: Filtra omitindo IDs recusados localmente
                                 val chamadosFiltrados = chamadosDisponiveis.filter { it.optInt("id", 0) !in chamadosRecusadosIds }
-
                                 if (chamadosFiltrados.isEmpty()) {
-                                    Text(text = "🟢 Modo Radar Ativo", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(modifier = Modifier.size(12.dp).background(Color(0xFF2E7D32), CircleShape))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(text = "Radar Ativo 🟢", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                                        }
+
+                                        Text(
+                                            text = "Desativar Radar 🛑",
+                                            color = Color.Red,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.clickable { aoAlternarDisponibilidadeMotorista(false) }.padding(4.dp)
+                                        )
+                                    }
                                     Text(text = "Aguardando solicitações de passageiros em $localidadeIdentificadaReal...", fontSize = 13.sp, color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(vertical = 16.dp))
                                 } else {
                                     val primeiroChamado = chamadosFiltrados.first()
@@ -723,6 +848,8 @@ fun MapaEmergencialScreen(
                                                     if (sucesso) {
                                                         Toast.makeText(contexto, "🟢 $msg", Toast.LENGTH_LONG).show()
                                                         corridaAceitaPeloMotoristaReal = primeiroChamado
+                                                        aoAtualizarCorridaAceitaMotoristaGlobal(primeiroChamado.toString()) // 🟢 Salva globalmente
+
                                                         val latO = primeiroChamado.optDouble("origem_latitude", latitudeAtual)
                                                         val lngO = primeiroChamado.optDouble("origem_longitude", longitudeAtual)
                                                         tracarRotaNoMapa(latitudeAtual, longitudeAtual, latO, lngO, "#0000FF", "Meu Carro 🚗", "Passageiro 🙋", forcarMovimentacaoCamera = true)
@@ -734,16 +861,7 @@ fun MapaEmergencialScreen(
                                             shape = RoundedCornerShape(8.dp)
                                         ) { Text("Aceitar Chamado Agora 🗺️", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
 
-                                        // 🟢 ALTERAÇÃO CRÍTICA DO BOTÃO RECUSAR: Adiciona o ID na lista negra local para sumir imediatamente sem travar
-                                        Button(
-                                            onClick = {
-                                                chamadosRecusadosIds.add(idCorrida)
-                                                BancoDeDados.corridasEmergentesDisponiveis.removeIf { it.optInt("id", 0) == idCorrida }
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF757575)),
-                                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                                            shape = RoundedCornerShape(8.dp)
-                                        ) { Text("Recusar Chamado", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                                        Button(onClick = { chamadosRecusadosIds.add(idCorrida); BancoDeDados.corridasEmergentesDisponiveis.removeIf { it.optInt("id", 0) == idCorrida } }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF757575)), modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(8.dp)) { Text("Recusar Chamado", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
                                     }
                                 }
                             }

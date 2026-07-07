@@ -1037,14 +1037,16 @@ object BancoDeDados {
     fun cancelarCorridaEmergentePassageiro(corridaId: Int, aoConcluir: (Boolean) -> Unit) {
         thread {
             try {
-                // Rota padrão do seu backend para derrubar solicitações
                 val url = URL("$BASE_URL/corridas/emergentes/cancelar/$corridaId")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "DELETE"
                 conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.connectTimeout = 4000
 
-                Handler(Looper.getMainLooper()).post { aoConcluir(conexao.responseCode == 200) }
+                val sucesso = conexao.responseCode == 200
+                Handler(Looper.getMainLooper()).post { aoConcluir(sucesso) }
             } catch (e: Exception) {
+                e.printStackTrace()
                 Handler(Looper.getMainLooper()).post { aoConcluir(false) }
             }
         }

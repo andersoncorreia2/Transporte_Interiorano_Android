@@ -117,6 +117,8 @@ fun CadastroScreen(
     var telefone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var senha by remember { mutableStateOf("") }
+    var confirmarSenha by remember { mutableStateOf("") }
+    var confirmarSenhaVisivel by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf("") }
 
     var tipoVeiculo by remember { mutableStateOf("Carro") }
@@ -310,10 +312,41 @@ fun CadastroScreen(
             OutlinedTextField(
                 value = senha, onValueChange = { senha = it }, label = { Text("Senha") }, modifier = Modifier.fillMaxWidth(),
                 visualTransformation = if (senhaVisivel) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next), // 🟢 Alterado para Next
                 trailingIcon = {
                     val image = if (senhaVisivel) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                     IconButton(onClick = { senhaVisivel = !senhaVisivel }) { Icon(imageVector = image, contentDescription = null) }
+                }
+            )
+
+            // 🟢 ADICIONADO CIRURGICAMENTE: Validação de critérios robustos em tempo real
+            val senhaValida = senha.length >= 8 &&
+                    senha.any { it.isUpperCase() } &&
+                    senha.any { it.isDigit() } &&
+                    senha.any { !it.isLetterOrDigit() }
+
+            if (senha.isNotEmpty() && !senhaValida) {
+                Text(
+                    text = "⚠️ A senha deve conter ao menos 8 caracteres, 1 letra maiúscula, 1 número e 1 caractere especial.",
+                    color = VermelhoErro, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
+            // 🟢 ADICIONADO CIRURGICAMENTE: Segundo campo obrigatório de Confirmação de Senha
+            OutlinedTextField(
+                value = confirmarSenha, onValueChange = { confirmarSenha = it }, label = { Text("Confirmar Senha") }, modifier = Modifier.fillMaxWidth(),
+                visualTransformation = if (confirmarSenhaVisivel) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                isError = confirmarSenha.isNotEmpty() && senha != confirmarSenha,
+                supportingText = {
+                    if (confirmarSenha.isNotEmpty() && senha != confirmarSenha) {
+                        Text("❌ As senhas digitadas não coincidem!", color = VermelhoErro, fontWeight = FontWeight.Bold)
+                    }
+                },
+                trailingIcon = {
+                    val image = if (confirmarSenhaVisivel) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                    IconButton(onClick = { confirmarSenhaVisivel = !confirmarSenhaVisivel }) { Icon(imageVector = image, contentDescription = null) }
                 }
             )
 
@@ -370,7 +403,8 @@ fun CadastroScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
                     onClick = {
-                        if (!cpfJaExiste && usuarioDisponivel && username.isNotBlank()) {
+                        // 🟢 ALTERADO CIRURGICAMENTE: Só permite cadastrar se a senha cumprir os requisitos e coincidir com a confirmação
+                        if (!cpfJaExiste && usuarioDisponivel && username.isNotBlank() && senhaValida && senha == confirmarSenha) {
                             val veiculoFinal = if (ofertarCarona) "$tipoVeiculo - $veiculo" else ""
                             val placaFinal = if (ofertarCarona) placa.uppercase() else ""
                             val vagasFinal = if (ofertarCarona) vagas else "0"
@@ -386,6 +420,7 @@ fun CadastroScreen(
                     onClick = {
                         nome = ""; cpf = ""; telefone = ""; email = ""; senha = ""; username = ""; veiculo = ""; placa = ""; vagas = "4";
                         rua = ""; numero = ""; complemento = ""; bairro = ""; cidade = ""; estado = ""; cep = "";
+                        confirmarSenha = ""; senhaVisivel = false; confirmarSenhaVisivel = false;
                         ofertarCarona = false; cpfJaExiste = false; senhaVisivel = false; usuarioDisponivel = true;
                         sugestoesNomes.clear()
                     },

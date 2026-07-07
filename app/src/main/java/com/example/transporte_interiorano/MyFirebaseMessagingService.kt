@@ -55,7 +55,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         // Configuração da Intenção de clique para abrir o App a partir do Balão
         val intentClique = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // 🟢 ALTERAÇÃO CIRÚRGICA: Adicionado FLAG_ACTIVITY_SINGLE_TOP para não destruir a MainActivity ativa do passageiro
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("AÇÃO_NOTIFICACAO", "ABRIR_MAPA")
         }
 
