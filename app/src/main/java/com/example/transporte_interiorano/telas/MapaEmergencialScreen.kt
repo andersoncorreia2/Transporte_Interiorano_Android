@@ -74,7 +74,7 @@ fun MapaEmergencialScreen(
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             val canal = android.app.NotificationChannel(canalId, "Alertas Emergenciais", android.app.NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Canal para notificações sonoras de corridas emergenciais"
+                description = "Canal para notifications sonoras de corridas emergenciais"
                 enableLights(true)
                 lightColor = android.graphics.Color.RED
                 enableVibration(true)
@@ -706,12 +706,30 @@ fun MapaEmergencialScreen(
                         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(text = "Central de Operações", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
                             Text(text = "Fique online para receber solicitações de corridas emergenciais na sua proximidade em $localidadeIdentificadaReal.", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
-                            Button(
-                                onClick = { aoAlternarDisponibilidadeMotorista(true) },
-                                colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
-                                modifier = Modifier.fillMaxWidth().height(48.dp),
-                                shape = RoundedCornerShape(8.dp)
-                            ) { Text("Ficar Disponível (Ficar Online) 🟢", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+
+                            // 🟢 AJUSTADO: Switch nativo simulando o comportamento de ligar o Radar
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (motoristaOnlineGlobal) "Radar (Ativado)" else "Radar (Desativado)",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (motoristaOnlineGlobal) AzulPrincipal else Color.Gray
+                                )
+                                Switch(
+                                    checked = motoristaOnlineGlobal,
+                                    onCheckedChange = { aoAlternarDisponibilidadeMotorista(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = AzulPrincipal,
+                                        uncheckedThumbColor = Color(0xFF757575),
+                                        uncheckedTrackColor = Color(0xFFE0E0E0)
+                                    )
+                                )
+                            }
                         }
                     } else {
                         if (corridaAceitaPeloMotoristaReal != null) {
@@ -812,25 +830,31 @@ fun MapaEmergencialScreen(
                             Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 val chamadosFiltrados = chamadosDisponiveis.filter { it.optInt("id", 0) !in chamadosRecusadosIds }
                                 if (chamadosFiltrados.isEmpty()) {
+
+                                    // 🟢 AJUSTADO: Switch unificado para ligar/desligar o radar na lista limpa de chamados
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(12.dp).background(Color(0xFF2E7D32), CircleShape))
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(text = "Radar Ativo 🟢", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
-                                        }
-
                                         Text(
-                                            text = "Desativar Radar 🛑",
-                                            color = Color.Red,
-                                            fontSize = 13.sp,
+                                            text = if (motoristaOnlineGlobal) "Radar (Ativado)" else "Radar (Desativado)",
+                                            fontSize = 16.sp,
                                             fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.clickable { aoAlternarDisponibilidadeMotorista(false) }.padding(4.dp)
+                                            color = if (motoristaOnlineGlobal) AzulPrincipal else Color.Gray
+                                        )
+                                        Switch(
+                                            checked = motoristaOnlineGlobal,
+                                            onCheckedChange = { aoAlternarDisponibilidadeMotorista(it) },
+                                            colors = SwitchDefaults.colors(
+                                                checkedThumbColor = Color.White,
+                                                checkedTrackColor = AzulPrincipal,
+                                                uncheckedThumbColor = Color(0xFF757575),
+                                                uncheckedTrackColor = Color(0xFFE0E0E0)
+                                            )
                                         )
                                     }
+
                                     Text(text = "Aguardando solicitações de passageiros em $localidadeIdentificadaReal...", fontSize = 13.sp, color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(vertical = 16.dp))
                                 } else {
                                     val primeiroChamado = chamadosFiltrados.first()
