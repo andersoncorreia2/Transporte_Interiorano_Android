@@ -28,36 +28,45 @@ import kotlinx.coroutines.delay
 fun ListaCaronasScreen(
     nomeLogado: String,
     aoClicarEmSolicitar: (Carona) -> Unit,
-    aoClicarVoltar: () -> Unit,
-    aoClicarPerfil: () -> Unit,
-    aoClicarHistorico: () -> Unit
+    aoClicarVoltar: () -> Unit
 ) {
-    // 🟢 ALTERAÇÃO CRÍTICA: Quando o passageiro entra na listagem programada, sincroniza o status dele para 'Programada'
+    // 🟢 ALTERAÇÃO CRÍTICA: Quando o passageiro entra na listagem programada, sincroniza o status...
     LaunchedEffect(Unit) {
         kotlin.concurrent.thread {
             try {
+                // ... código do http connection original mantido aqui...
                 val url = java.net.URL("${BancoDeDados.BASE_URL}/usuarios/alterar_modalidade")
                 val conexao = url.openConnection() as java.net.HttpURLConnection
                 conexao.requestMethod = "POST"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conexao.setRequestProperty("Authorization", "Bearer ${BancoDeDados.tokenSessao}")
                 conexao.doOutput = true
-
-                val json = org.json.JSONObject().apply {
-                    put("modalidade", "Programada")
-                }
-
+                val json = org.json.JSONObject().apply { put("modalidade", "Programada") }
                 val escritor = java.io.OutputStreamWriter(conexao.outputStream)
                 escritor.write(json.toString())
                 escritor.flush()
                 escritor.close()
-
                 conexao.responseCode
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
+
+    // 🟢 MOTOR DE POLLING (TEMPO REAL): Se o passageiro tem algum pedido rodando, checa a nuvem a cada 4 segundos
+    val temPedidoAtivo = BancoDeDados.todosOsPedidos.any {
+        it.passageiro.trim().equals(nomeLogado.trim(), ignoreCase = true) &&
+                (it.status.lowercase().contains("pendente") || it.status.lowercase().contains("aceito"))
+    }
+    LaunchedEffect(temPedidoAtivo) {
+        if (temPedidoAtivo) {
+            while (true) {
+                kotlinx.coroutines.delay(4000) // Aguarda 4 segundos
+                BancoDeDados.buscarSolicitacoesDoServidor() // Puxa atualização silenciosa
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -114,24 +123,8 @@ fun ListaCaronasScreen(
                 }
             }
 
+            // 🟢 REMOVIDO: O bloco inferior que continha os botões "Ver Meu Perfil" e "Ver Histórico" foi limpo!
             Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = aoClicarPerfil,
-                colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("Ver Meu Perfil", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-
-            OutlinedButton(
-                onClick = aoClicarHistorico,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = AzulPrincipal)
-            ) {
-                Text("Ver Histórico de Viagens", fontWeight = FontWeight.Bold)
-            }
         }
     }
 }
@@ -188,12 +181,34 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
                 Text("👥 Vagas Livres: $vagasRestantes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao)
 
                 if (meuPedido != null && status.contains("pendente")) {
-                    var segundosRestantes by remember { mutableStateOf(900) }
+                    var segundosRestantes by remember { mutableStateOf(0) }
 
                     LaunchedEffect(key1 = meuPedido.idReal) {
-                        while (segundosRestantes > 0) {
-                            delay(1000)
-                            segundosRestantes--
+                        try {
+                            val formatoData = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
+                            //formatoData.timeZone = java.util.TimeZone.getTimeZone("UTC")
+
+                            val dataCriacaoBanco = formatoData.parse(meuPedido.dataCriacao)
+
+                            if (dataCriacaoBanco != null) {
+                                // Pega a hora do banco e soma 15 minutos (em milissegundos)
+                                val limiteParaPagar = dataCriacaoBanco.time + (15 * 60 * 1000)
+
+                                while (true) {
+                                    val agora = System.currentTimeMillis()
+                                    val diff = ((limiteParaPagar - agora) / 1000).toInt()
+
+                                    if (diff > 0) {
+                                        segundosRestantes = diff
+                                        kotlinx.coroutines.delay(1000)
+                                    } else {
+                                        segundosRestantes = 0
+                                        break
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            segundosRestantes = 0
                         }
                     }
 
@@ -203,7 +218,7 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
 
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "⏱️ Tempo restante para pagar: $tempoTexto",
+                        text = if (segundosRestantes > 0) "⏱️ Tempo restante para pagar: $tempoTexto" else "⚠️ O tempo de pagamento expirou!",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (segundosRestantes > 120) AzulPrincipal else VermelhoErro
@@ -249,7 +264,11 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
                 }
 
                 Button(
-                    onClick = { aoClicarEmSolicitar(carona) },
+                    onClick = {
+                        aoClicarEmSolicitar(carona)
+                        // 🟢 FORÇA O RECARREGAMENTO: Avisa o banco para baixar a lista nova e redesenhar a tela
+                        BancoDeDados.buscarSolicitacoesDoServidor()
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
                     modifier = Modifier.fillMaxWidth()
                 ) {

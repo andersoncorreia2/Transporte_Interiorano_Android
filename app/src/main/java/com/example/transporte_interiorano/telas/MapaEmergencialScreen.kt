@@ -1,6 +1,10 @@
 package com.example.transporte_interiorano.telas
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -56,13 +60,13 @@ fun MapaEmergencialScreen(
     longitudeAtual: Double,
     motoristaOnlineGlobal: Boolean,
     corridaCriadaIdGlobal: Int?,
-    corridaAceitaMotoristaGlobalStr: String?, // 🟢 Injeção do objeto de corrida persistido do motorista
-    tempoCancelamentoGlobal: Int, // 🟢 ADICIONADO: Recebe o tempo sintonizado
+    corridaAceitaMotoristaGlobalStr: String?,
+    tempoCancelamentoGlobal: Int,
     aoClicarVoltar: () -> Unit,
-    aoChamarMotorista: (String, String, (Int) -> Unit) -> Unit, // 🟢 Sincronizado com os 3 parâmetros da MainActivity
+    aoChamarMotorista: (String, String, (Int) -> Unit) -> Unit,
     aoLimparCorridaGlobal: () -> Unit,
-    aoAtualizarTempoCancelamentoGlobal: (Int) -> Unit, // 🟢 ADICIONADO: Notifica a regressão de segundos
-    aoAtualizarCorridaAceitaMotoristaGlobal: (String?) -> Unit, // 🟢 Callback para persistência na MainActivity
+    aoAtualizarTempoCancelamentoGlobal: (Int) -> Unit,
+    aoAtualizarCorridaAceitaMotoristaGlobal: (String?) -> Unit,
     aoAlternarDisponibilidadeMotorista: (Boolean) -> Unit
 ) {
     val contexto = LocalContext.current
@@ -83,7 +87,6 @@ fun MapaEmergencialScreen(
             notificationManager.createNotificationChannel(canal)
         }
 
-        // 🟢 ADICIONADO CIRURGICAMENTE: Configura o clique para reabrir a MainActivity aproveitando a instância viva
         val intentCliqueLocal = android.content.Intent(contexto, com.example.transporte_interiorano.MainActivity::class.java).apply {
             flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("AÇÃO_NOTIFICACAO", "ABRIR_MAPA")
@@ -104,7 +107,7 @@ fun MapaEmergencialScreen(
             .setCategory(androidx.core.app.NotificationCompat.CATEGORY_ALARM)
             .setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION))
             .setAutoCancel(true)
-            .setContentIntent(pendingIntentLocal) // 🟢 ADICIONADO CIRURGICAMENTE: Vincula a ação de clique segura ao construtor
+            .setContentIntent(pendingIntentLocal)
 
         if (androidx.core.content.ContextCompat.checkSelfPermission(contexto, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             notificationManager.notify(System.currentTimeMillis().toInt(), construtor.build())
@@ -132,6 +135,19 @@ fun MapaEmergencialScreen(
     var deixarCameraLivrePassageiro by remember { mutableStateOf(false) }
 
     val chamadosRecusadosIds = remember { mutableStateListOf<Int>() }
+
+    // Auxiliar para gerar ícones customizados escalados de Carro ou Moto de forma nativa e limpa
+    fun criarMarcadorVeiculoIcon(textoEmoji: String): Drawable {
+        val tamanhoPx = (40 * contexto.resources.displayMetrics.density).toInt()
+        val bitmap = Bitmap.createBitmap(tamanhoPx, tamanhoPx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = android.graphics.Paint().apply {
+            textSize = tamanhoPx * 0.8f
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        canvas.drawText(textoEmoji, tamanhoPx / 2f, tamanhoPx * 0.75f, paint)
+        return BitmapDrawable(contexto.resources, bitmap)
+    }
 
     LaunchedEffect(latitudeAtual, longitudeAtual) {
         escopoCorrotina.launch(Dispatchers.IO) {
@@ -169,7 +185,6 @@ fun MapaEmergencialScreen(
 
     val chamadosDisponiveis = BancoDeDados.corridasEmergentesDisponiveis
 
-    // 🟢 SINCRO RECUPERADA: Se o motorista reabrir a tela, o JSON reativo é remontado síncronamente a partir da MainActivity
     var corridaAceitaPeloMotoristaReal by remember {
         mutableStateOf(corridaAceitaMotoristaGlobalStr?.let { JSONObject(it) })
     }
@@ -179,7 +194,6 @@ fun MapaEmergencialScreen(
         corridaCriadaId = corridaCriadaIdGlobal
     }
 
-    // 🟢 ALTERADO: Inicializa amarrado ao tempo atualizado vindo da MainActivity
     var tempoToleranciaCancelamento by remember { mutableStateOf(tempoCancelamentoGlobal) }
     LaunchedEffect(tempoCancelamentoGlobal) {
         tempoToleranciaCancelamento = tempoCancelamentoGlobal
@@ -220,14 +234,24 @@ fun MapaEmergencialScreen(
         }
     }
 
-    // 🟢 CRONÔMETRO REESTRUTURADO: Executa a regressão segundo a segundo e salva na MainActivity
+    // 🟢 DINÂMICO E SEGURO: Sincronização de localização ativa do motorista na nuvem a cada 4 segundos
+    LaunchedEffect(isMotorista, motoristaOnlineGlobal, corridaAceitaPeloMotoristaReal) {
+        if (isMotorista && motoristaOnlineGlobal && corridaAceitaPeloMotoristaReal != null) {
+            val idCorrida = corridaAceitaPeloMotoristaReal!!.optInt("id", 0)
+            while (corridaAceitaPeloMotoristaReal != null) {
+                BancoDeDados.atualizarLocalizacaoMotoristaNuvem(idCorrida, latitudeAtual, longitudeAtual)
+                delay(4000)
+            }
+        }
+    }
+
     LaunchedEffect(corridaCriadaId, statusCorridaPassageiro, tempoToleranciaCancelamento) {
         if (corridaCriadaId != null && statusCorridaPassageiro == "Aceita") {
             if (tempoToleranciaCancelamento > 0) {
                 delay(1000)
                 val proximoSegundo = tempoToleranciaCancelamento - 1
                 tempoToleranciaCancelamento = proximoSegundo
-                aoAtualizarTempoCancelamentoGlobal(proximoSegundo) // 🟢 Grava síncronamente na MainActivity
+                aoAtualizarTempoCancelamentoGlobal(proximoSegundo)
             }
         }
     }
@@ -246,7 +270,8 @@ fun MapaEmergencialScreen(
         corDaLinhaHex: String = "#0000FF",
         tituloOrigem: String = "Origem",
         tituloDestino: String = "Destino",
-        forcarMovimentacaoCamera: Boolean = false
+        forcarMovimentacaoCamera: Boolean = false,
+        emojiMarcadorCustom: String? = null // 🟢 Injeção opcional do ícone do veículo dinâmico
     ) {
         escopoCorrotina.launch(Dispatchers.IO) {
             try {
@@ -277,10 +302,10 @@ fun MapaEmergencialScreen(
 
                         withContext(Dispatchers.Main) {
                             tempoEstimadoTexto = when {
-                                minutes <= 1 -> "1 min (Chegada Imediata 🟢)"
+                                minutes <= 1 -> "Chegada Imediata 🟢"
                                 minutes <= 5 -> "$minutes min (Vias Livres 🟢)"
                                 minutes <= 15 -> "$minutes min (Trânsito Regular 🟡)"
-                                else -> "$minutes min (Fluxo Intenso / Lentidão 🔴)"
+                                else -> "$minutes min (Fluxo Intenso 🔴)"
                             }
 
                             mapaRef?.let { mapa ->
@@ -294,9 +319,14 @@ fun MapaEmergencialScreen(
                                 mapa.overlays.add(linhaVisual)
 
                                 val marcadorOrigem = Marker(mapa).apply {
+                                    position = GeoPoint(latOri, latOri) // Mantém sua lógica de coordenadas
                                     position = GeoPoint(latOri, lngOri)
                                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                     title = tituloOrigem
+                                    // 🟢 CORREÇÃO: Se for a posição do motorista (Passageiro olhando), aplica o ícone customizado
+                                    if (emojiMarcadorCustom != null && !isMotorista) {
+                                        icon = criarMarcadorVeiculoIcon(emojiMarcadorCustom)
+                                    }
                                 }
                                 mapa.overlays.add(marcadorOrigem)
 
@@ -304,6 +334,10 @@ fun MapaEmergencialScreen(
                                     position = GeoPoint(latDes, lngDes)
                                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                     title = tituloDestino
+                                    // 🟢 CORREÇÃO: Se for a posição do motorista se deslocando (Motorista olhando), aplica o ícone customizado
+                                    if (emojiMarcadorCustom != null && isMotorista) {
+                                        icon = criarMarcadorVeiculoIcon(emojiMarcadorCustom)
+                                    }
                                 }
                                 mapa.overlays.add(marcadorDestino)
 
@@ -323,6 +357,7 @@ fun MapaEmergencialScreen(
 
     var motoristaVinculadoTexto by remember { mutableStateOf("") }
 
+    // 🟢 PASSAGEIRO TOTALMENTE DINÂMICO PELO GPS: Rastreia a aproximação do veículo real vindo do banco
     LaunchedEffect(corridaCriadaId) {
         val idFixo = corridaCriadaId
         if (idFixo != null) {
@@ -354,16 +389,22 @@ fun MapaEmergencialScreen(
                             val placaMot = dadosCorrida.optString("placa", "---")
                             motoristaVinculadoTexto = "Motorista $nomeMot vindo em um $veiculoMot ($placaMot)"
 
-                            val latO = dadosCorrida.optDouble("origem_latitude", latitudeAtual)
-                            val lngO = dadosCorrida.optDouble("origem_longitude", longitudeAtual)
+                            // 🟢 BUSCA AS COORDENADAS REAIS DO MOTORISTA ATUALIZADAS NO SERVIDOR
+                            val latMotoristaNuvem = dadosCorrida.optDouble("motorista_latitude", latitudeAtual)
+                            val lngMotoristaNuvem = dadosCorrida.optDouble("motorista_longitude", longitudeAtual)
 
+                            val tipoVeiculoDaCorrida = dadosCorrida.optString("veiculo", "Carro")
+                            val veiculoTipoBackup = dadosCorrida.optString("veiculo_tipo", "Carro")
+
+                            val emojiIcone = if (tipoVeiculoDaCorrida.contains("moto", ignoreCase = true) || veiculoTipoBackup.contains("moto", ignoreCase = true)) "🏍️" else "🚗"
                             tracarRotaNoMapa(
-                                latOri = latitudeAtual, lngOri = longitudeAtual,
-                                latDes = latO, lngDes = lngO,
+                                latOri = latMotoristaNuvem, lngOri = lngMotoristaNuvem,
+                                latDes = latitudeAtual, lngDes = longitudeAtual,
                                 corDaLinhaHex = "#0000FF",
-                                tituloOrigem = "Você está aqui 🙋‍♂️",
-                                tituloDestino = "Motorista vindo 🚗",
-                                forcarMovimentacaoCamera = !deixarCameraLivrePassageiro
+                                tituloOrigem = "Motorista vindo",
+                                tituloDestino = "Você está aqui 🙋‍♂️",
+                                forcarMovimentacaoCamera = !deixarCameraLivrePassageiro,
+                                emojiMarcadorCustom = emojiIcone // 🟢 Passa o emoji detectado
                             )
                             deixarCameraLivrePassageiro = true
                         } else if (statusMestre == "Em Viagem") {
@@ -395,21 +436,10 @@ fun MapaEmergencialScreen(
 
                             mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }
                             mapaRef?.invalidate()
-                        } else if (statusMestre == "Procurando") {
-                            motoristaVinculadoTexto = ""
-                            deixarCameraLivrePassageiro = false
-                            mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }
-                            mapaRef?.invalidate()
                         }
-                    } else {
-                        corridaCriadaId = null
-                        aoLimparCorridaGlobal()
-                        statusCorridaPassageiro = "Procurando"
-                        motoristaVinculadoTexto = ""
-                        mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
                     }
                 }
-                delay(3000)
+                delay(3500)
             }
         }
     }
@@ -424,7 +454,7 @@ fun MapaEmergencialScreen(
                         if (dados == null || dados.optString("status") == "Cancelada" || dados.optString("status") == "Procurando") {
                             Toast.makeText(contexto, "⚠️ Esta corrida foi cancelada pelo passageiro.", Toast.LENGTH_LONG).show()
                             corridaAceitaPeloMotoristaReal = null
-                            aoAtualizarCorridaAceitaMotoristaGlobal(null) // 🟢 Limpa da MainActivity
+                            aoAtualizarCorridaAceitaMotoristaGlobal(null)
                             mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
                         } else {
                             val novoStatus = dados.optString("status", "Aceita")
@@ -432,7 +462,7 @@ fun MapaEmergencialScreen(
                             jsonAtualizado.put("status", novoStatus)
 
                             corridaAceitaPeloMotoristaReal = jsonAtualizado
-                            aoAtualizarCorridaAceitaMotoristaGlobal(jsonAtualizado.toString()) // 🟢 Sincroniza o status persistentemente
+                            aoAtualizarCorridaAceitaMotoristaGlobal(jsonAtualizado.toString())
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -444,6 +474,7 @@ fun MapaEmergencialScreen(
         }
     }
 
+    // 🟢 MOTORISTA TOTALMENTE DINÂMICO PELO GPS: Renderiza o trajeto e o veículo dele se deslocando
     LaunchedEffect(corridaAceitaPeloMotoristaReal, latitudeAtual, longitudeAtual) {
         if (corridaAceitaPeloMotoristaReal != null) {
             val corridaAtiva = corridaAceitaPeloMotoristaReal!!
@@ -451,14 +482,19 @@ fun MapaEmergencialScreen(
             val latPassageiro = corridaAtiva.optDouble("origem_latitude")
             val lngPassageiro = corridaAtiva.optDouble("origem_longitude")
 
+            val tipoVeiculoDaCorrida = corridaAtiva.optString("veiculo_tipo", "Carro")
+            // 🟢 CORRIGIDO: Validação imune a problemas de maiúsculas/minúsculas
+            val emojiIcone = if (tipoVeiculoDaCorrida.contains("moto", ignoreCase = true)) "🏍️" else "🚗"
+
             if (statusInternal != "Em Viagem") {
                 tracarRotaNoMapa(
                     latOri = latitudeAtual, lngOri = longitudeAtual,
                     latDes = latPassageiro, lngDes = lngPassageiro,
                     corDaLinhaHex = "#0055FF",
-                    tituloOrigem = "Meu Carro 🚗",
+                    tituloOrigem = "Meu Veículo $emojiIcone",
                     tituloDestino = "Buscar Passageiro 🙋‍♂️",
-                    forcarMovimentacaoCamera = false
+                    forcarMovimentacaoCamera = false,
+                    emojiMarcadorCustom = emojiIcone
                 )
             }
         }
@@ -707,7 +743,6 @@ fun MapaEmergencialScreen(
                             Text(text = "Central de Operações", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
                             Text(text = "Fique online para receber solicitações de corridas emergenciais na sua proximidade em $localidadeIdentificadaReal.", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
 
-                            // 🟢 AJUSTADO: Switch nativo simulando o comportamento de ligar o Radar
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -795,7 +830,11 @@ fun MapaEmergencialScreen(
                                                             val lngO = corridaFixa.optDouble("origem_longitude", longitudeAtual)
                                                             val latD = corridaFixa.optDouble("destino_latitude", latitudeAtual)
                                                             val lngD = corridaFixa.optDouble("destino_longitude", longitudeAtual)
-                                                            tracarRotaNoMapa(latO, lngO, latD, lngD, "#2ECC71", "Embarque 📍", "Destino Final 🏁", forcarMovimentacaoCamera = true)
+
+                                                            val tipoVeic = corridaFixa.optString("veiculo_tipo", "Carro")
+                                                            val emj = if (tipoVeic.startsWith("Moto")) "🏍️" else "🚗"
+
+                                                            tracarRotaNoMapa(latO, lngO, latD, lngD, "#2ECC71", "Embarque 📍", "Destino Final 🏁", forcarMovimentacaoCamera = true, emojiMarcadorCustom = emj)
                                                             Toast.makeText(contexto, "Viagem iniciada! Siga rumo ao destino.", Toast.LENGTH_SHORT).show()
                                                         }
                                                     }
@@ -812,7 +851,7 @@ fun MapaEmergencialScreen(
                                                 BancoDeDados.atualizarStatusCorridaEmergenteNuvem(idCorrida, "Finalizada") { sucesso ->
                                                     if (sucesso) {
                                                         corridaAceitaPeloMotoristaReal = null
-                                                        aoAtualizarCorridaAceitaMotoristaGlobal(null) // 🟢 Limpa globalmente
+                                                        aoAtualizarCorridaAceitaMotoristaGlobal(null)
                                                         BancoDeDados.corridasEmergentesDisponiveis.clear()
                                                         mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
                                                         Toast.makeText(contexto, "Corrida concluída com sucesso!", Toast.LENGTH_SHORT).show()
@@ -831,7 +870,6 @@ fun MapaEmergencialScreen(
                                 val chamadosFiltrados = chamadosDisponiveis.filter { it.optInt("id", 0) !in chamadosRecusadosIds }
                                 if (chamadosFiltrados.isEmpty()) {
 
-                                    // 🟢 AJUSTADO: Switch unificado para ligar/desligar o radar na lista limpa de chamados
                                     Row(
                                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -872,11 +910,15 @@ fun MapaEmergencialScreen(
                                                     if (sucesso) {
                                                         Toast.makeText(contexto, "🟢 $msg", Toast.LENGTH_LONG).show()
                                                         corridaAceitaPeloMotoristaReal = primeiroChamado
-                                                        aoAtualizarCorridaAceitaMotoristaGlobal(primeiroChamado.toString()) // 🟢 Salva globalmente
+                                                        aoAtualizarCorridaAceitaMotoristaGlobal(primeiroChamado.toString())
 
                                                         val latO = primeiroChamado.optDouble("origem_latitude", latitudeAtual)
                                                         val lngO = primeiroChamado.optDouble("origem_longitude", longitudeAtual)
-                                                        tracarRotaNoMapa(latitudeAtual, longitudeAtual, latO, lngO, "#0000FF", "Meu Carro 🚗", "Passageiro 🙋", forcarMovimentacaoCamera = true)
+
+                                                        val tipoV = primeiroChamado.optString("veiculo_tipo", "Carro")
+                                                        val emj = if (tipoV.startsWith("Moto")) "🏍️" else "🚗"
+
+                                                        tracarRotaNoMapa(latitudeAtual, longitudeAtual, latO, lngO, "#0000FF", "Meu Veículo $emj", "Passageiro 🙋", forcarMovimentacaoCamera = true, emojiMarcadorCustom = emj)
                                                     }
                                                 }
                                             },

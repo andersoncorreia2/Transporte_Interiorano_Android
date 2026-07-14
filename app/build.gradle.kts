@@ -13,7 +13,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.transporte_interiorano"
+        applicationId = "com.example.transporte_interiorano.dev"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

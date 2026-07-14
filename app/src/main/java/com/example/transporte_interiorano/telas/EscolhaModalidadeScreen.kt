@@ -5,10 +5,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,12 +21,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.transporte_interiorano.ui.theme.AzulPrincipal
+import com.example.transporte_interiorano.ui.theme.*
 
 @Composable
 fun EscolhaModalidadeScreen(
     onModalidadeSelecionada: (String) -> Unit,
-    onClicarFecharGeral: () -> Unit // 🟢 1. O parâmetro adicionado exatamente na assinatura da função
+    onClicarFecharGeral: () -> Unit, // 🟢 1. O parâmetro adicionado exatamente na assinatura da função
+    onClicarPerfil: () -> Unit, // 🟢 ADICIONADO: Parâmetro para disparar a abertura do Perfil
+    onClicarHistorico: () -> Unit // 🟢 ADICIONADO: Parâmetro para abrir o histórico
 ) {
     Column(
         modifier = Modifier
@@ -59,10 +64,40 @@ fun EscolhaModalidadeScreen(
                 color = AzulPrincipal,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 32.dp)
+                modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // CARD 1: VIAGEM PROGRAMADA (Estilo BlaBlaCar)
+            // 🟢 ADICIONADO: O botão "Ver Meu Perfil" posicionado exatamente abaixo do título antes dos cards
+            Button(
+                onClick = onClicarPerfil,
+                colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Ver Meu Perfil", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 🟢 CORRIGIDO: Modificado ButtonDefaults para OutlinedButtonDefaults na propriedade colors
+            OutlinedButton(
+                onClick = onClicarHistorico,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(size = 8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AzulPrincipal)
+            ) {
+                Text("Ver Histórico de Viagens", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // CARD 1: VIAGEM PROGRAMADA
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -96,7 +131,7 @@ fun EscolhaModalidadeScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // CARD 2: CORRIDA DE EMERGÊNCIA (Estilo UBER)
+            // CARD 2: CORRIDA DE EMERGÊNCIA
             Card(
                 modifier = Modifier
                     .fillMaxWidth()

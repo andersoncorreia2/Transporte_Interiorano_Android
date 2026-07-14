@@ -281,17 +281,14 @@ class MainActivity : ComponentActivity() {
                             },
                             aoClicarVoltar = {
                                 telaAtual = "escolhaModalidade"
-                            },
-                            aoClicarPerfil = { telaAtual = "perfil" },
-                            aoClicarHistorico = { telaAtual = "historico" }
+                            }
                         )
 
                         "historico" -> HistoricoScreen(
                             cpfUsuario = cpfLogado,
                             isMotorista = veiculoLogado.isNotEmpty(),
                             aoClicarVoltar = {
-                                telaAtual =
-                                    if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                                telaAtual = "escolhaModalidade"
                             }
                         )
 
@@ -405,7 +402,8 @@ class MainActivity : ComponentActivity() {
                                     telaAtual = "login"
                                 },
                                 aoClicarVoltar = {
-                                    telaAtual = if (veiculoLogado.isNotEmpty()) "status" else "listaCaronas"
+                                    // 🟢 CIRÚRGICO: Seta agora retorna direto para a tela "Como deseja viajar hoje?"
+                                    telaAtual = "escolhaModalidade"
                                 },
                                 aoClicarExcluirConta = {
                                     BancoDeDados.excluirUsuario(emailLogado)
@@ -431,26 +429,23 @@ class MainActivity : ComponentActivity() {
                             EditarPerfilScreen(
                                 usuarioAtual = usuarioAtual,
                                 aoSalvar = { usuarioAtualizado ->
-                                    nomeLogado = usuarioAtualizado.nome
-                                    emailLogado = usuarioAtualizado.email
-                                    telefoneLogado = usuarioAtualizado.telefone
-                                    veiculoLogado = usuarioAtualizado.veiculo
-                                    placaLogada = usuarioAtualizado.placa
-                                    vagasLogada = usuarioAtualizado.vagas
-                                    ruaLogada = usuarioAtualizado.rua
-                                    numeroLogado = usuarioAtualizado.numero
-                                    complementoLogado = usuarioAtualizado.complemento
-                                    bairroLogada = usuarioAtualizado.bairro
-                                    cidadeLogada = usuarioAtualizado.cidade
-                                    estadoLogado = usuarioAtualizado.estado
-                                    cepLogado = usuarioAtualizado.cep
-                                    usuarioLogado = usuarioAtualizado.usuario
-
-                                    if (usuarioAtualizado.usuario.isNotEmpty()) {
-                                        usuarioLogado = usuarioAtualizado.usuario
-                                    }
-
+                                    // 🟢 CIRÚRGICO: Traz todo o bloco de mutação de estado do Compose para rodar de forma segura na Main Thread
                                     this@MainActivity.runOnUiThread {
+                                        nomeLogado = usuarioAtualizado.nome
+                                        emailLogado = usuarioAtualizado.email
+                                        telefoneLogado = usuarioAtualizado.telefone
+                                        veiculoLogado = usuarioAtualizado.veiculo
+                                        placaLogada = usuarioAtualizado.placa
+                                        vagasLogada = usuarioAtualizado.vagas
+                                        ruaLogada = usuarioAtualizado.rua
+                                        numeroLogado = usuarioAtualizado.numero
+                                        complementoLogado = usuarioAtualizado.complemento
+                                        bairroLogada = usuarioAtualizado.bairro
+                                        cidadeLogada = usuarioAtualizado.cidade
+                                        estadoLogado = usuarioAtualizado.estado
+                                        cepLogado = usuarioAtualizado.cep
+                                        usuarioLogado = usuarioAtualizado.usuario
+
                                         Toast.makeText(this@MainActivity, "Alteração Realizada com Sucesso!", Toast.LENGTH_SHORT).show()
                                         telaAtual = "perfil"
                                     }
@@ -502,6 +497,14 @@ class MainActivity : ComponentActivity() {
                                 BancoDeDados.tokenSessao = ""
                                 BancoDeDados.cpfUsuarioLogado = ""
                                 telaAtual = "login"
+                            },
+                            // 🟢 ADICIONADO CIRURGICAMENTE: Liga a ação do clique do botão na tela com a navegação nativa do app
+                            onClicarPerfil = {
+                                telaAtual = "perfil"
+                            },
+                            // 🟢 ADICIONADO: Callback aciona a abertura do histórico a partir do Hub
+                            onClicarHistorico = {
+                                telaAtual = "historico"
                             }
                         )
 

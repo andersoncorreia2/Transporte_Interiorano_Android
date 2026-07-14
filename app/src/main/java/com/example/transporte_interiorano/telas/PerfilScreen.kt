@@ -126,7 +126,7 @@ fun PerfilScreen(
 
             Spacer(modifier = Modifier.weight(1f, fill = false)) // Ajuste para o peso não quebrar a rolagem
 
-            // 🆕 BOTÃO: Editar Perfil
+            // BOTÃO: Editar Perfil
             Button(
                 onClick = aoClicarEditar,
                 colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),

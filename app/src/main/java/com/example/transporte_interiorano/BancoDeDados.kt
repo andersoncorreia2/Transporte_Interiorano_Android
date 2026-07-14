@@ -44,7 +44,9 @@ data class Pedido(
     val evento_nome: String = "",
     val cidade_origem: String = "",
     val cidade_destino: String = "",
-    val horario: String = ""
+    val horario: String = "",
+    val dataCriacao: String = "", //Adicionado em 13/07/2026 às 15:03
+    val dataFinalizacao: String = "" // 🟢 NOVA INFORMAÇÃO
 )
 
 object BancoDeDados {
@@ -117,7 +119,8 @@ object BancoDeDados {
                             evento_nome = item.optString("evento_nome", ""),
                             cidade_origem = item.optString("cidade_origem", ""),
                             cidade_destino = item.optString("cidade_destino", ""),
-                            horario = item.optString("horario", "")
+                            horario = item.optString("horario", ""),
+                            dataCriacao = item.optString("data_criacao", "") //Adicionado em 13/07/2026 às 15:03
                         )
                     )
                 }
@@ -619,7 +622,10 @@ object BancoDeDados {
                             evento_nome = item.optString("evento_nome", ""),
                             cidade_origem = item.optString("cidade_origem", ""),
                             cidade_destino = item.optString("cidade_destino", ""),
-                            horario = item.optString("horario", "")
+                            //horario = item.optString("horario", ""),
+                            horario = item.optString("data_criacao", ""),
+                            dataCriacao = item.optString("data_criacao", ""),
+                            dataFinalizacao = item.optString("data_finalizacao", "")
                         )
                     )
                 }
@@ -655,7 +661,10 @@ object BancoDeDados {
                             evento_nome = item.optString("evento_nome", ""),
                             cidade_origem = item.optString("cidade_origem", ""),
                             cidade_destino = item.optString("cidade_destino", ""),
-                            horario = item.optString("horario", "")
+                            //horario = item.optString("horario", ""),
+                            horario = item.optString("data_criacao", ""),
+                            dataCriacao = item.optString("data_criacao", ""),
+                            dataFinalizacao = item.optString("data_finalizacao", "")
                         )
                     )
                 }
@@ -1100,6 +1109,106 @@ object BancoDeDados {
             } catch (e: Exception) {
                 e.printStackTrace()
                 Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+            }
+        }
+    }
+
+    fun atualizarLocalizacaoMotoristaNuvem(idCorrida: Int, latitude: Double, longitude: Double) {
+        kotlin.concurrent.thread {
+            try {
+                val url = URL("$BASE_URL/corridas_emergentes/atualizar_localizacao")
+                val conexao = url.openConnection() as java.net.HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.doOutput = true
+
+                val json = org.json.JSONObject().apply {
+                    put("id", idCorrida)
+                    put("motorista_latitude", latitude)
+                    put("motorista_longitude", longitude)
+                }
+
+                val escritor = java.io.OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                val codigoHttp = conexao.responseCode
+                android.util.Log.d("GPS_TRACK", "Sincronização de localização na nuvem: Código $codigoHttp")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+    // 🟢 ADICIONADO: Puxa o histórico de corridas emergentes concluídas do passageiro e converte em Pedido
+    fun buscarHistoricoEmergencialPassageiro(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
+        thread {
+            try {
+                val urlCodificado = java.net.URLEncoder.encode(cpf, "UTF-8")
+                val resposta = URL("$BASE_URL/corridas/emergentes/historico_passageiro/$urlCodificado").readText()
+                val jsonArray = JSONArray(resposta)
+                val listaEmergencial = mutableListOf<Pedido>()
+                for (i in 0 until jsonArray.length()) {
+                    val item = jsonArray.getJSONObject(i)
+                    if (item.optString("status", "").equals("Finalizada", ignoreCase = true)) {
+                        listaEmergencial.add(
+                            Pedido(
+                                idReal = item.getInt("id"),
+                                caronaId = 0, // Emergencial não possui ID de carona programada
+                                passageiro = "",
+                                passageiroCpf = cpf,
+                                status = "Finalizada",
+                                evento_nome = "Corrida Emergencial ⚡",
+                                cidade_origem = item.optString("endereco_origem", "Origem").split(",").firstOrNull() ?: "Origem",
+                                cidade_destino = item.optString("endereco_destino", "Destino").split(",").firstOrNull() ?: "Destino",
+                                horario = item.optString("data_criacao", ""),
+                                dataCriacao = item.optString("data_criacao", ""),
+                                dataFinalizacao = item.optString("data_finalizacao", "")
+                            )
+                        )
+                    }
+                }
+                aoReceber(listaEmergencial)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                aoReceber(emptyList())
+            }
+        }
+    }
+
+    // 🟢 ADICIONADO: Puxa o histórico de corridas emergentes concluídas do motorista e converte em Pedido
+    fun buscarHistoricoEmergencialMotorista(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
+        thread {
+            try {
+                val urlCodificado = java.net.URLEncoder.encode(cpf, "UTF-8")
+                val resposta = URL("$BASE_URL/corridas/emergentes/historico_motorista/$urlCodificado").readText()
+                val jsonArray = JSONArray(resposta)
+                val listaEmergencial = mutableListOf<Pedido>()
+                for (i in 0 until jsonArray.length()) {
+                    val item = jsonArray.getJSONObject(i)
+                    if (item.optString("status", "").equals("Finalizada", ignoreCase = true)) {
+                    listaEmergencial.add(
+                            Pedido(
+                                idReal = item.getInt("id"),
+                                caronaId = 0,
+                                passageiro = item.optString("passageiro_nome", "Passageiro"),
+                                passageiroCpf = "",
+                                status = "Finalizada",
+                                evento_nome = "Corrida Emergencial ⚡",
+                                cidade_origem = item.optString("endereco_origem", "Origem").split(",").firstOrNull() ?: "Origem",
+                                cidade_destino = item.optString("endereco_destino", "Destino").split(",").firstOrNull() ?: "Destino",
+                                horario = item.optString("data_criacao", ""),
+                                dataCriacao = item.optString("data_criacao", ""),
+                                dataFinalizacao = item.optString("data_finalizacao", "")
+                            )
+                        )
+                    }
+                }
+                aoReceber(listaEmergencial)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                aoReceber(emptyList())
             }
         }
     }

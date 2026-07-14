@@ -222,11 +222,16 @@ fun EditarPerfilScreen(
                         )
                         BancoDeDados.atualizarUsuarioNuvem(usuarioAtualizado) { sucesso ->
                             if (sucesso) {
-                                Toast.makeText(context, "Atualização realizada com sucesso!", Toast.LENGTH_SHORT).show()
-                                aoSalvar(usuarioAtualizado)
+                                // 🟢 GARANTE EXECUÇÃO SEGURA NA THREAD PRINCIPAL DO ANDROID
+                                (context as? android.app.Activity)?.runOnUiThread {
+                                    Toast.makeText(context, "Atualização realizada com sucesso!", Toast.LENGTH_SHORT).show()
+                                    aoSalvar(usuarioAtualizado)
+                                }
                             } else {
-                                salvando = false
-                                Toast.makeText(context, "Erro ao atualizar dados.", Toast.LENGTH_SHORT).show()
+                                (context as? android.app.Activity)?.runOnUiThread {
+                                    salvando = false
+                                    Toast.makeText(context, "Erro ao atualizar dados.", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
                     } else { Toast.makeText(context, "Preencha os campos obrigatórios!", Toast.LENGTH_SHORT).show() }

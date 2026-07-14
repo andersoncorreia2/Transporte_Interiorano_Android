@@ -37,16 +37,18 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun mostrarNotificacao(titulo: String, mensagem: String) {
-        val channelId = "canal_caronas_id"
+        // 🟢 CORREÇÃO 1: Mudamos o ID do canal! O Android vai ser forçado a criar um canal novo,
+        // esquecendo o antigo que estava "silenciado" e aplicando a força máxima agora.
+        val channelId = "canal_caronas_urgente_v2"
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "Avisos de Carona",
-                NotificationManager.IMPORTANCE_HIGH
+                "Avisos de Carona Urgente",
+                NotificationManager.IMPORTANCE_HIGH // Garante o Heads-up (pular na tela)
             ).apply {
-                description = "Alertas de pedidos de vagas"
+                description = "Alertas sonoros de pedidos de vagas"
                 enableLights(true)
                 enableVibration(true)
             }
@@ -55,7 +57,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         // Configuração da Intenção de clique para abrir o App a partir do Balão
         val intentClique = Intent(this, MainActivity::class.java).apply {
-            // 🟢 ALTERAÇÃO CIRÚRGICA: Adicionado FLAG_ACTIVITY_SINGLE_TOP para não destruir a MainActivity ativa do passageiro
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("AÇÃO_NOTIFICACAO", "ABRIR_MAPA")
         }
@@ -72,7 +73,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(titulo)
             .setContentText(mensagem)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX) // 🟢 CORREÇÃO 2: Prioridade MAX!
+            .setDefaults(NotificationCompat.DEFAULT_ALL)  // 🟢 CORREÇÃO 3: Força o uso do som e vibração altos do próprio celular
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 

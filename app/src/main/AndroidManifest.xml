@@ -20,7 +20,7 @@
         android:usesCleartextTraffic="true" tools:targetApi="31">
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.example.transporte_interiorano.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.transporte_interiorano"
             android:windowSoftInputMode="adjustResize">
@@ -32,7 +32,7 @@
         </activity>
 
         <service
-            android:name=".MyFirebaseMessagingService"
+            android:name="com.example.transporte_interiorano.MyFirebaseMessagingService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />

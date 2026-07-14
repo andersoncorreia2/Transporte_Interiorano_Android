@@ -84,8 +84,17 @@ fun MinhasSolicitacoesScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White).padding(16.dp)) {
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Minhas Solicitações", color = AzulPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Minhas Solicitações",
+                color = AzulPrincipal,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
 
             IconButton(onClick = aoClicarVoltar) {
                 Icon(Icons.Filled.ArrowBack, contentDescription = "Voltar", tint = AzulPrincipal)
@@ -95,14 +104,22 @@ fun MinhasSolicitacoesScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         if (isMotorista) {
-            Button(onClick = aoClicarNovoEvento, colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao), modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(8.dp)) {
+            Button(
+                onClick = aoClicarNovoEvento,
+                colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
                 Text("➕ Criar Novo Evento/Corrida", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
 
         if (buscandoDadosIniciais) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = AzulPrincipal)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -110,7 +127,10 @@ fun MinhasSolicitacoesScreen(
                 }
             }
         } else if (minhasCaronasOrdenadas.isEmpty()) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
                 Text("Nenhum evento criado por você no momento.", color = Color.Gray)
             }
         } else {
@@ -124,26 +144,8 @@ fun MinhasSolicitacoesScreen(
                 }
             }
         }
-
-        Button(
-            onClick = aoClicarPerfil,
-            colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text("Ver Meu Perfil")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = aoClicarHistorico,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = AzulPrincipal)
-        ) {
-            Text("Ver Histórico de Viagens", fontWeight = FontWeight.Bold)
-        }
+        // 🟢 REMOVIDO: O botão "Ver Meu Perfil" que ficava aqui foi limpo com sucesso!
+        // 🟢 REMOVIDO: O OutlinedButton de Histórico de Viagens que ficava aqui no rodapé foi limpo!
     }
 }
 
@@ -292,7 +294,7 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                 }
             } else {
                 val ehAceito = statusLimpo.contains("aceito")
-                val ehFinalizado = statusLimpo.contains("finalizado")
+                val ehFinalizado = statusLimpo.contains("finalizada")
 
                 val textoStatus = when {
                     ehAceito -> "Aceito ✅"
