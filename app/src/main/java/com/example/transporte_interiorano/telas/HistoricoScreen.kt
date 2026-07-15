@@ -116,6 +116,12 @@ fun HistoricoScreen(
                                             fontSize = 11.sp,
                                             color = Color.DarkGray
                                         )
+                                    } else if (!isMotorista && pedido.motoristaNome.isNotEmpty()) {
+                                        Text(
+                                            text = "Motorista: ${pedido.motoristaNome}",
+                                            fontSize = 11.sp,
+                                            color = Color.DarkGray
+                                        )
                                     }
                                 }
 

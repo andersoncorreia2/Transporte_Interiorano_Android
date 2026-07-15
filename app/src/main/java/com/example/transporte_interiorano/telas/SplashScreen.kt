@@ -15,9 +15,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-//import com.example.transporte_interiorano.R
 import com.example.transporte_interiorano.ui.theme.AzulPrincipal
 import kotlinx.coroutines.delay
+//import com.example.transporte_interiorano.dev.R
 import com.example.transporte_interiorano.R
 
 @Composable

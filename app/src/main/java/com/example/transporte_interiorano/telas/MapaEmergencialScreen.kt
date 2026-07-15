@@ -114,10 +114,6 @@ fun MapaEmergencialScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        Configuration.getInstance().userAgentValue = contexto.packageName
-    }
-
     var mapaRef by remember { mutableStateOf<MapView?>(null) }
     var enderecoOrigem by remember { mutableStateOf("") }
     var enderecoDestino by remember { mutableStateOf("") }
@@ -201,6 +197,31 @@ fun MapaEmergencialScreen(
 
     var tempoEstimadoTexto by remember { mutableStateOf("Calculando rota...") }
     var statusCorridaPassageiro by remember { mutableStateOf("Procurando") }
+    var iconeVeiculoConfirmado by remember { mutableStateOf("🚗") }
+
+    LaunchedEffect(Unit) {
+        Configuration.getInstance().userAgentValue = contexto.packageName
+
+        // 🟢 TRAVA DE RECUPERAÇÃO: Dispara a verificação silenciosa na nuvem
+        BancoDeDados.recuperarEstadoCorridaEmergenteNuvem { corridaRecuperada ->
+            if (corridaRecuperada != null) {
+                val statusRecuperado = corridaRecuperada.optString("status")
+                val idRecuperado = corridaRecuperada.optInt("id")
+                val souOMotoristaDesta = corridaRecuperada.optBoolean("is_motorista_desta_corrida", false)
+
+                if (isMotorista && souOMotoristaDesta) {
+                    // Força o radar a ligar e devolve os dados da corrida para a tela do motorista
+                    aoAlternarDisponibilidadeMotorista(true)
+                    aoAtualizarCorridaAceitaMotoristaGlobal(corridaRecuperada.toString())
+                    corridaAceitaPeloMotoristaReal = corridaRecuperada
+                } else if (!isMotorista && !souOMotoristaDesta) {
+                    // Devolve o status e o mapa travado para a tela do passageiro
+                    corridaCriadaId = idRecuperado
+                    statusCorridaPassageiro = statusRecuperado
+                }
+            }
+        }
+    }
 
     LaunchedEffect(enderecoDestino) {
         if (enderecoDestino.trim().length >= 3 && expandido) {
@@ -397,6 +418,8 @@ fun MapaEmergencialScreen(
                             val veiculoTipoBackup = dadosCorrida.optString("veiculo_tipo", "Carro")
 
                             val emojiIcone = if (tipoVeiculoDaCorrida.contains("moto", ignoreCase = true) || veiculoTipoBackup.contains("moto", ignoreCase = true)) "🏍️" else "🚗"
+                            iconeVeiculoConfirmado = emojiIcone // SALVA O EMOJI CORRETO AQUI
+
                             tracarRotaNoMapa(
                                 latOri = latMotoristaNuvem, lngOri = lngMotoristaNuvem,
                                 latDes = latitudeAtual, lngDes = longitudeAtual,
@@ -404,7 +427,7 @@ fun MapaEmergencialScreen(
                                 tituloOrigem = "Motorista vindo",
                                 tituloDestino = "Você está aqui 🙋‍♂️",
                                 forcarMovimentacaoCamera = !deixarCameraLivrePassageiro,
-                                emojiMarcadorCustom = emojiIcone // 🟢 Passa o emoji detectado
+                                emojiMarcadorCustom = emojiIcone // Passa o emoji detectado
                             )
                             deixarCameraLivrePassageiro = true
                         } else if (statusMestre == "Em Viagem") {
@@ -678,7 +701,8 @@ fun MapaEmergencialScreen(
                         } else {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = if (statusCorridaPassageiro == "Em Viagem") "🚗 Viagem em Andamento!" else if (statusCorridaPassageiro == "Aceita") "✅ Motorista a Caminho!" else "⚡ Procurando parceiros próximos...",
+                                    // SUBSTITUÍDO O 🚗 POR $iconeVeiculoConfirmado ABAIXO:
+                                    text = if (statusCorridaPassageiro == "Em Viagem") "$iconeVeiculoConfirmado Viagem em Andamento!" else if (statusCorridaPassageiro == "Aceita") "✅ Motorista a Caminho!" else "⚡ Procurando parceiros próximos...",
                                     fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (statusCorridaPassageiro == "Procurando") AzulPrincipal else Color(0xFF2E7D32)
                                 )
 

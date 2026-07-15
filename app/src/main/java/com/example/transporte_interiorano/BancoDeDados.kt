@@ -46,7 +46,8 @@ data class Pedido(
     val cidade_destino: String = "",
     val horario: String = "",
     val dataCriacao: String = "", //Adicionado em 13/07/2026 às 15:03
-    val dataFinalizacao: String = "" // 🟢 NOVA INFORMAÇÃO
+    val dataFinalizacao: String = "", // 🟢 NOVA INFORMAÇÃO
+    val motoristaNome: String = "" // 🟢 ADICIONADO: Recebe o nome do motorista
 )
 
 object BancoDeDados {
@@ -625,7 +626,8 @@ object BancoDeDados {
                             //horario = item.optString("horario", ""),
                             horario = item.optString("data_criacao", ""),
                             dataCriacao = item.optString("data_criacao", ""),
-                            dataFinalizacao = item.optString("data_finalizacao", "")
+                            dataFinalizacao = item.optString("data_finalizacao", ""),
+                            motoristaNome = item.optString("motorista_nome", "") // 🟢 CAPTURA DO NOME DO MOTORISTA DO PYTHON
                         )
                     )
                 }
@@ -1141,6 +1143,35 @@ object BancoDeDados {
             }
         }
     }
+
+    // 🟢 NOVA FUNÇÃO: Tenta recuperar o estado caso o app seja fechado sem querer
+    fun recuperarEstadoCorridaEmergenteNuvem(aoReceber: (JSONObject?) -> Unit) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/corridas/emergentes/recuperar_estado")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "GET"
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.connectTimeout = 4000
+
+                if (conexao.responseCode == 200) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(resposta)
+                    // Se o JSON trouxer um "id", significa que ele encontrou uma corrida ativa pendente
+                    if (json.has("id")) {
+                        Handler(Looper.getMainLooper()).post { aoReceber(json) }
+                    } else {
+                        Handler(Looper.getMainLooper()).post { aoReceber(null) }
+                    }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoReceber(null) }
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post { aoReceber(null) }
+            }
+        }
+    }
+
     // 🟢 ADICIONADO: Puxa o histórico de corridas emergentes concluídas do passageiro e converte em Pedido
     fun buscarHistoricoEmergencialPassageiro(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
         thread {
