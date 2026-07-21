@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.google.gms.google-services")
     alias(libs.plugins.android.application)
@@ -5,21 +7,34 @@ plugins {
 }
 
 android {
-    namespace = "com.example.transporte_interiorano"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    namespace = "com.example.transporte_interiorano.dev"
+    compileSdk = 36 // Ajustei a sintaxe de versão aqui para a forma padrão do Android
 
     defaultConfig {
-        applicationId = "com.example.transporte_interiorano"
+        applicationId = "com.example.transporte_interiorano.dev"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // 🟢 LEITURA SEGURA
+        val secretsFile = rootProject.file("secrets.properties")
+        if (secretsFile.exists()) {
+            val properties = Properties()
+            properties.load(secretsFile.reader())
+
+            // Alterado para corresponder exatamente ao que está no seu secrets.properties
+            val tokenReal = properties.getProperty("MAPBOX_API_TOKEN")
+
+            if (tokenReal != null && tokenReal.isNotEmpty()) {
+                buildConfigField("String", "MAPBOX_TOKEN", "\"$tokenReal\"")
+            } else {
+                throw GradleException("ERRO: A chave 'MAPBOX_API_TOKEN' não existe no arquivo.")
+            }
+        } else {
+            throw GradleException("ERRO: Arquivo secrets.properties não encontrado na raiz.")
+        }
     }
 
     buildTypes {
@@ -30,10 +45,7 @@ android {
                 "proguard-rules.pro"
             )
         }
-        debug {
-            // 🟢 ISSO AQUI CRIA O SEU APLICATIVO GÊMEO:
-            //applicationIdSuffix = ".dev"   🟢 REMOVIDO o suffix para o Firebase aceitar compilar localmente
-        }
+        debug { }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -41,6 +53,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true // 🟢 DEPOIS: Ativando a geração do BuildConfig
     }
 }
 
@@ -63,7 +76,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     // Importa o Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
-// Ferramenta de Notificações (Mensagens)
+    // Ferramenta de Notificações (Mensagens)
     implementation("com.google.firebase:firebase-messaging")
     implementation("org.osmdroid:osmdroid-android:6.1.18")
 }

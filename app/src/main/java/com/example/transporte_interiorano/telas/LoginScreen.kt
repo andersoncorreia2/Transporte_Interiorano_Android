@@ -27,8 +27,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
-//import com.example.transporte_interiorano.dev.R
-import com.example.transporte_interiorano.R
+import com.example.transporte_interiorano.dev.R
+//import com.example.transporte_interiorano.R
 
 @Composable
 fun LoginScreen(

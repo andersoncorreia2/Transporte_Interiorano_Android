@@ -34,12 +34,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.BancoDeDados
+import com.example.transporte_interiorano.PagamentoEmergenteService
+import com.example.transporte_interiorano.PagamentoProgramadoService
 import com.example.transporte_interiorano.ui.theme.AzulPrincipal
 import com.example.transporte_interiorano.ui.theme.VerdeBotao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.GlobalScope
 import org.json.JSONArray
 import org.json.JSONObject
 import org.osmdroid.config.Configuration
@@ -51,6 +54,10 @@ import org.osmdroid.views.overlay.Polyline
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.roundToInt
+import org.osmdroid.util.MapTileIndex
+//import com.example.transporte_interiorano.BuildConfig
+import com.example.transporte_interiorano.dev.BuildConfig // Importe a classe gerada pelo namespace que você definiu no Gradle
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +70,7 @@ fun MapaEmergencialScreen(
     corridaAceitaMotoristaGlobalStr: String?,
     tempoCancelamentoGlobal: Int,
     aoClicarVoltar: () -> Unit,
-    aoChamarMotorista: (String, String, (Int) -> Unit) -> Unit,
+    aoChamarMotorista: (String, String, String, (Int) -> Unit) -> Unit,
     aoLimparCorridaGlobal: () -> Unit,
     aoAtualizarTempoCancelamentoGlobal: (Int) -> Unit,
     aoAtualizarCorridaAceitaMotoristaGlobal: (String?) -> Unit,
@@ -120,6 +127,12 @@ fun MapaEmergencialScreen(
     val paradasExtras = remember { mutableStateListOf<String>() }
     var tipoVeiculoSelecionado by remember { mutableStateOf("Carro") }
 
+// 🟢 NOVOS ESTADOS DE PAGAMENTO (ESTILO UBER)
+    var formaPagamentoSelecionada by remember { mutableStateOf("Dinheiro 💵") }
+    var mostrarModalPagamento by remember { mutableStateOf(false) }
+    var mostrarAlertaDebito by remember { mutableStateOf<JSONObject?>(null) }
+    var mostrarConfirmacaoFaturamentoMotorista by remember { mutableStateOf(false) }
+
     val sugestoes = remember { mutableStateListOf<String>() }
     var expandido by remember { mutableStateOf(false) }
     var localidadeIdentificadaReal by remember { mutableStateOf("sua região") }
@@ -164,11 +177,53 @@ fun MapaEmergencialScreen(
                     withContext(Dispatchers.Main) {
                         localidadeIdentificadaReal = cidadeReal
                         if (enderecoOrigem.isEmpty()) {
-                            val rua = address?.optString("road")
-                            if (rua != null) {
-                                enderecoOrigem = "$rua, $cidadeReal"
+                            val addressObj = json.optJSONObject("address")
+
+                            if (addressObj != null) {
+// 1. Tenta capturar o nome da via ou local abrangendo mais categorias do mapa
+                                var localPrincipal = addressObj.optString("road", "").trim()
+                                if (localPrincipal.isEmpty()) localPrincipal = addressObj.optString("street", "").trim()
+                                if (localPrincipal.isEmpty()) localPrincipal = addressObj.optString("highway", "").trim()
+                                if (localPrincipal.isEmpty()) localPrincipal = addressObj.optString("pedestrian", "").trim()
+                                if (localPrincipal.isEmpty()) localPrincipal = addressObj.optString("amenity", "").trim()
+                                if (localPrincipal.isEmpty()) localPrincipal = addressObj.optString("building", "").trim()
+
+                                val numero = addressObj.optString("house_number", "").trim()
+
+// 2. Busca Bairro
+                                var bairro = addressObj.optString("suburb", "").trim()
+                                if (bairro.isEmpty()) bairro = addressObj.optString("neighbourhood", "").trim()
+                                if (bairro.isEmpty()) bairro = addressObj.optString("city_district", "").trim()
+
+// 3. Pega Estado, CEP e País
+                                val estado = addressObj.optString("state", "").trim()
+                                val cep = addressObj.optString("postcode", "").trim()
+                                val pais = addressObj.optString("country", "").trim()
+
+// 4. Monta o endereço de forma inteligente usando uma Lista
+                                val partesEndereco = mutableListOf<String>()
+
+                                if (localPrincipal.isNotEmpty()) {
+                                    var logradouro = localPrincipal
+                                    if (numero.isNotEmpty()) logradouro += ", $numero"
+                                    partesEndereco.add(logradouro)
+                                }
+
+                                if (bairro.isNotEmpty()) partesEndereco.add(bairro)
+                                if (cidadeReal.isNotBlank() && cidadeReal != bairro) partesEndereco.add(cidadeReal)
+                                if (estado.isNotEmpty()) partesEndereco.add(estado)
+//if (cep.isNotEmpty()) partesEndereco.add(cep)
+                                if (pais.isNotEmpty()) partesEndereco.add(pais)
+
+// 5. Junta todas as partes encontradas separando-as com vírgula e espaço
+                                if (partesEndereco.isNotEmpty()) {
+                                    enderecoOrigem = partesEndereco.joinToString(", ")
+                                } else {
+// Se o OpenStreetMap bugar completamente, pega a string crua dele
+                                    enderecoOrigem = json.optString("display_name", "Localização Desconhecida")
+                                }
                             } else {
-                                enderecoOrigem = json.optString("display_name", "Minha Localização").split(",").take(3).joinToString(",")
+                                enderecoOrigem = "Buscando localização..."
                             }
                         }
                     }
@@ -200,9 +255,11 @@ fun MapaEmergencialScreen(
     var iconeVeiculoConfirmado by remember { mutableStateOf("🚗") }
 
     LaunchedEffect(Unit) {
-        Configuration.getInstance().userAgentValue = contexto.packageName
+        // 🟢 CONFIGURAÇÃO DO OSM (Corrigida e dentro do escopo)
+        Configuration.getInstance().userAgentValue = "TransporteInteriorano/1.0 (contato: seu-email@exemplo.com)"
+        Configuration.getInstance().osmdroidBasePath = contexto.cacheDir
 
-        // 🟢 TRAVA DE RECUPERAÇÃO: Dispara a verificação silenciosa na nuvem
+        // 🟢 TRAVA DE RECUPERAÇÃO: Agora está DENTRO do LaunchedEffect
         BancoDeDados.recuperarEstadoCorridaEmergenteNuvem { corridaRecuperada ->
             if (corridaRecuperada != null) {
                 val statusRecuperado = corridaRecuperada.optString("status")
@@ -221,12 +278,14 @@ fun MapaEmergencialScreen(
                 }
             }
         }
-    }
+    } // <--- Agora o LaunchedEffect fecha aqui, com tudo contido corretamente.
 
     LaunchedEffect(enderecoDestino) {
+        val mapboxToken = BuildConfig.MAPBOX_TOKEN
+        //val MEU_TOKEN_MAPBOX = com.example.transporte_interiorano.dev.BuildConfig.MAPBOX_TOKEN
         if (enderecoDestino.trim().length >= 3 && expandido) {
             delay(500)
-            BancoDeDados.buscarSugestoesDeEndereco(enderecoDestino) { resultado ->
+            buscarEnderecoMapbox(enderecoDestino, mapboxToken) { resultado ->
                 sugestoes.clear()
                 sugestoes.addAll(resultado)
             }
@@ -235,33 +294,33 @@ fun MapaEmergencialScreen(
         }
     }
 
-    LaunchedEffect(isMotorista, motoristaOnlineGlobal, corridaAceitaPeloMotoristaReal) {
+    LaunchedEffect(isMotorista, motoristaOnlineGlobal) {
         if (isMotorista && motoristaOnlineGlobal) {
             var totalChamadosAnterior = 0
-            while (true) {
+            while (motoristaOnlineGlobal) { // Loop encerra se o radar for desligado
                 if (corridaAceitaPeloMotoristaReal == null) {
                     BancoDeDados.buscarCorridasEmergentesDoServidor { sucesso ->
                         if (sucesso) {
                             val chamadosAtuais = BancoDeDados.corridasEmergentesDisponiveis.size
                             if (chamadosAtuais > totalChamadosAnterior) {
-                                dispararNotificacaoComSom("🚨 NOVO CHAMADO DETECTADO!", "Há uma nova solicitação de corrida emergente no seu radar!")
+                                dispararNotificacaoComSom("🚨 NOVO CHAMADO DETECTADO!", "Há uma nova solicitação de corrida no seu radar!")
                             }
                             totalChamadosAnterior = chamadosAtuais
                         }
                     }
                 }
-                delay(4000)
+                delay(15000)
             }
         }
     }
 
-    // 🟢 DINÂMICO E SEGURO: Sincronização de localização ativa do motorista na nuvem a cada 4 segundos
+// 🟢 DINÂMICO E SEGURO: Sincronização de localização ativa do motorista na nuvem a cada 4 segundos
     LaunchedEffect(isMotorista, motoristaOnlineGlobal, corridaAceitaPeloMotoristaReal) {
         if (isMotorista && motoristaOnlineGlobal && corridaAceitaPeloMotoristaReal != null) {
             val idCorrida = corridaAceitaPeloMotoristaReal!!.optInt("id", 0)
             while (corridaAceitaPeloMotoristaReal != null) {
                 BancoDeDados.atualizarLocalizacaoMotoristaNuvem(idCorrida, latitudeAtual, longitudeAtual)
-                delay(4000)
+                delay(10000)
             }
         }
     }
@@ -340,11 +399,11 @@ fun MapaEmergencialScreen(
                                 mapa.overlays.add(linhaVisual)
 
                                 val marcadorOrigem = Marker(mapa).apply {
-                                    position = GeoPoint(latOri, latOri) // Mantém sua lógica de coordenadas
+                                    //position = GeoPoint(latOri, latOri) // Mantém sua lógica de coordenadas
                                     position = GeoPoint(latOri, lngOri)
                                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                     title = tituloOrigem
-                                    // 🟢 CORREÇÃO: Se for a posição do motorista (Passageiro olhando), aplica o ícone customizado
+// 🟢 CORREÇÃO: Se for a posição do motorista (Passageiro olhando), aplica o ícone customizado
                                     if (emojiMarcadorCustom != null && !isMotorista) {
                                         icon = criarMarcadorVeiculoIcon(emojiMarcadorCustom)
                                     }
@@ -355,7 +414,7 @@ fun MapaEmergencialScreen(
                                     position = GeoPoint(latDes, lngDes)
                                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                     title = tituloDestino
-                                    // 🟢 CORREÇÃO: Se for a posição do motorista se deslocando (Motorista olhando), aplica o ícone customizado
+// 🟢 CORREÇÃO: Se for a posição do motorista se deslocando (Motorista olhando), aplica o ícone customizado
                                     if (emojiMarcadorCustom != null && isMotorista) {
                                         icon = criarMarcadorVeiculoIcon(emojiMarcadorCustom)
                                     }
@@ -378,11 +437,82 @@ fun MapaEmergencialScreen(
 
     var motoristaVinculadoTexto by remember { mutableStateOf("") }
 
-    // 🟢 PASSAGEIRO TOTALMENTE DINÂMICO PELO GPS: Rastreia a aproximação do veículo real vindo do banco
+    // 🟢 GUARDA O DESENHO DA ROTA: Salva a linha azul para desenhar de graça no mapa
+    val pontosRotaPassageiro = remember { mutableStateListOf<GeoPoint>() }
+
+    // 🟢 GUARDA A POSIÇÃO DO CARRO: Move o ícone na tela sem recalcular rota
+    var coordenadaMotoristaReal by remember { mutableStateOf<GeoPoint?>(null) }
+
+    // 🟢 CONTROLA A API: Evita que o app calcule a rota mais de uma vez por corrida
+    var rotaJaCalculadaPassageiro by remember { mutableStateOf(false) }
+
+    // 🟢 FUNÇÃO CUSTO ZERO TOTALMENTE BLINDADA COM CRONÔMETRO
+    fun buscarRotaUmaUnicaVez(latOri: Double, lngOri: Double, latDes: Double, lngDes: Double) {
+        if (rotaJaCalculadaPassageiro) return // Se já calculou, sai fora para economizar!
+
+        escopoCorrotina.launch(Dispatchers.IO) {
+            try {
+                val url = URL("https://router.project-osrm.org/route/v1/driving/$lngOri,$latOri;$lngDes,$latDes?overview=full&geometries=geojson")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.setRequestProperty("User-Agent", contexto.packageName)
+                conexao.connectTimeout = 5000
+
+                if (conexao.responseCode == 200) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(resposta)
+                    val rotasArray = json.getJSONArray("routes")
+
+                    if (rotasArray.length() > 0) {
+                        val rotaPrincipal = rotasArray.getJSONObject(0)
+
+                        // 🟢 EXTRAI O TEMPO DO SERVIDOR
+                        val duracaoSegundos = rotaPrincipal.getDouble("duration")
+                        val minutes = (duracaoSegundos / 60).toInt()
+
+                        val geometry = rotaPrincipal.getJSONObject("geometry")
+                        val coordinates = geometry.getJSONArray("coordinates")
+
+                        val listaPontos = mutableListOf<GeoPoint>()
+                        for (i in 0 until coordinates.length()) {
+                            val coord = coordinates.getJSONArray(i)
+                            listaPontos.add(GeoPoint(coord.getDouble(1), coord.getDouble(0)))
+                        }
+
+                        withContext(Dispatchers.Main) {
+                            // 🟢 SUCESSO: Atualiza o texto visual do passageiro!
+                            tempoEstimadoTexto = when {
+                                minutes <= 1 -> "Chegada Imediata 🟢"
+                                minutes <= 5 -> "$minutes min (Vias Livres 🟢)"
+                                minutes <= 15 -> "$minutes min (Trânsito Regular 🟡)"
+                                else -> "$minutes min (Fluxo Intenso 🔴)"
+                            }
+
+                            pontosRotaPassageiro.clear()
+                            pontosRotaPassageiro.addAll(listaPontos)
+                            rotaJaCalculadaPassageiro = true // 🔒 Porta trancada! Não gasta mais API.
+                        }
+                    }
+                } else {
+                    // 🔴 PLANO B: Se o servidor rejeitar a coordenada (Ex: Rua sem saída mapeada)
+                    withContext(Dispatchers.Main) {
+                        tempoEstimadoTexto = "Motorista a caminho (Rota indisponível 🟡)"
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // 🔴 PLANO C: Se a internet falhar ou der erro no código
+                withContext(Dispatchers.Main) {
+                    tempoEstimadoTexto = "Motorista a caminho (Aguardando sinal 🔴)"
+                }
+            }
+        }
+    }
+
+// 🟢 PASSAGEIRO TOTALMENTE DINÂMICO PELO GPS: Rastreia a aproximação do veículo real vindo do banco
     LaunchedEffect(corridaCriadaId) {
         val idFixo = corridaCriadaId
         if (idFixo != null) {
-            while (true) {
+            while (corridaCriadaId != null) {
                 BancoDeDados.buscarStatusCorridaNuvem(idFixo) { dadosCorrida ->
                     if (dadosCorrida != null) {
                         val statusMestre = dadosCorrida.optString("status", "Procurando")
@@ -403,6 +533,10 @@ fun MapaEmergencialScreen(
                             aoLimparCorridaGlobal()
                             statusCorridaPassageiro = "Procurando"
                             motoristaVinculadoTexto = ""
+                            // 🟢 Limpa o rastreamento otimizado:
+                            pontosRotaPassageiro.clear()
+                            coordenadaMotoristaReal = null
+                            rotaJaCalculadaPassageiro = false
                             mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
                         } else if (statusMestre == "Aceita") {
                             val nomeMot = dadosCorrida.optString("motorista_nome", "Parceiro")
@@ -410,7 +544,7 @@ fun MapaEmergencialScreen(
                             val placaMot = dadosCorrida.optString("placa", "---")
                             motoristaVinculadoTexto = "Motorista $nomeMot vindo em um $veiculoMot ($placaMot)"
 
-                            // 🟢 BUSCA AS COORDENADAS REAIS DO MOTORISTA ATUALIZADAS NO SERVIDOR
+                            // 🟢 CAPTURA COORDENADAS DO SERVIDOR
                             val latMotoristaNuvem = dadosCorrida.optDouble("motorista_latitude", latitudeAtual)
                             val lngMotoristaNuvem = dadosCorrida.optDouble("motorista_longitude", longitudeAtual)
 
@@ -418,18 +552,27 @@ fun MapaEmergencialScreen(
                             val veiculoTipoBackup = dadosCorrida.optString("veiculo_tipo", "Carro")
 
                             val emojiIcone = if (tipoVeiculoDaCorrida.contains("moto", ignoreCase = true) || veiculoTipoBackup.contains("moto", ignoreCase = true)) "🏍️" else "🚗"
-                            iconeVeiculoConfirmado = emojiIcone // SALVA O EMOJI CORRETO AQUI
+                            iconeVeiculoConfirmado = emojiIcone
 
-                            tracarRotaNoMapa(
+                            // 🟢 PASSO 1: CALCULA A ROTA APENAS UMA VEZ NA VIAGEM INTEIRA!
+                            buscarRotaUmaUnicaVez(
                                 latOri = latMotoristaNuvem, lngOri = lngMotoristaNuvem,
-                                latDes = latitudeAtual, lngDes = longitudeAtual,
-                                corDaLinhaHex = "#0000FF",
-                                tituloOrigem = "Motorista vindo",
-                                tituloDestino = "Você está aqui 🙋‍♂️",
-                                forcarMovimentacaoCamera = !deixarCameraLivrePassageiro,
-                                emojiMarcadorCustom = emojiIcone // Passa o emoji detectado
+                                latDes = latitudeAtual, lngDes = longitudeAtual
                             )
-                            deixarCameraLivrePassageiro = true
+
+                            // 🟢 PASSO 2: APENAS ATUALIZA O CARRINHO NA TELA (CUSTO ZERO!)
+                            coordenadaMotoristaReal = GeoPoint(latMotoristaNuvem, lngMotoristaNuvem)
+
+                            // Centraliza a câmera no motorista no primeiro momento se necessário
+                            if (!deixarCameraLivrePassageiro) {
+                                mapaRef?.controller?.animateTo(
+                                    GeoPoint(
+                                        latMotoristaNuvem,
+                                        lngMotoristaNuvem
+                                    )
+                                )
+                                deixarCameraLivrePassageiro = true
+                            }
                         } else if (statusMestre == "Em Viagem") {
                             val latO = dadosCorrida.optDouble("origem_latitude", latitudeAtual)
                             val lngO = dadosCorrida.optDouble("origem_longitude", longitudeAtual)
@@ -457,12 +600,17 @@ fun MapaEmergencialScreen(
                             enderecoDestino = ""
                             paradasExtras.clear()
 
+                            // 🟢 Limpa o rastreamento otimizado:
+                            pontosRotaPassageiro.clear()
+                            coordenadaMotoristaReal = null
+                            rotaJaCalculadaPassageiro = false
+
                             mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }
                             mapaRef?.invalidate()
                         }
                     }
                 }
-                delay(3500)
+                delay(10000)
             }
         }
     }
@@ -471,7 +619,7 @@ fun MapaEmergencialScreen(
         if (corridaAceitaPeloMotoristaReal != null) {
             val idCorridaMonitorada = corridaAceitaPeloMotoristaReal!!.optInt("id", 0)
             while (corridaAceitaPeloMotoristaReal != null) {
-                delay(3000)
+                delay(10000)
                 BancoDeDados.buscarStatusCorridaNuvem(idCorridaMonitorada) { dados ->
                     try {
                         if (dados == null || dados.optString("status") == "Cancelada" || dados.optString("status") == "Procurando") {
@@ -497,7 +645,7 @@ fun MapaEmergencialScreen(
         }
     }
 
-    // 🟢 MOTORISTA TOTALMENTE DINÂMICO PELO GPS: Renderiza o trajeto e o veículo dele se deslocando
+// 🟢 MOTORISTA TOTALMENTE DINÂMICO PELO GPS: Renderiza o trajeto e o veículo dele se deslocando
     LaunchedEffect(corridaAceitaPeloMotoristaReal, latitudeAtual, longitudeAtual) {
         if (corridaAceitaPeloMotoristaReal != null) {
             val corridaAtiva = corridaAceitaPeloMotoristaReal!!
@@ -506,7 +654,7 @@ fun MapaEmergencialScreen(
             val lngPassageiro = corridaAtiva.optDouble("origem_longitude")
 
             val tipoVeiculoDaCorrida = corridaAtiva.optString("veiculo_tipo", "Carro")
-            // 🟢 CORRIGIDO: Validação imune a problemas de maiúsculas/minúsculas
+// 🟢 CORRIGIDO: Validação imune a problemas de maiúsculas/minúsculas
             val emojiIcone = if (tipoVeiculoDaCorrida.contains("moto", ignoreCase = true)) "🏍️" else "🚗"
 
             if (statusInternal != "Em Viagem") {
@@ -534,7 +682,75 @@ fun MapaEmergencialScreen(
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             AndroidView(
-                factory = { ctx -> MapView(ctx).apply { setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(16.5); mapaRef = this } },
+                factory = { ctx ->
+                    // 1. Identificação obrigatória para o Mapbox
+                    org.osmdroid.config.Configuration.getInstance().userAgentValue = "TransporteInterioranoApp"
+
+                    val token = BuildConfig.MAPBOX_TOKEN
+
+                    // Log para ver o token NO MOMENTO DA CRIAÇÃO
+                    android.util.Log.e("DEBUG_MAPA", "Token sendo usado: '$token'")
+
+                    val mapboxTileSource = object : org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase(
+                        "Mapbox", 1, 20, 256, ".png",
+                        arrayOf("https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/")
+                    ) {
+                        override fun getTileURLString(pMapTileIndex: Long): String {
+                            val z = MapTileIndex.getZoom(pMapTileIndex)
+                            val x = MapTileIndex.getX(pMapTileIndex)
+                            val y = MapTileIndex.getY(pMapTileIndex)
+
+                            // Monta a URL
+                            val url = "${baseUrl[0]}$z/$x/$y?access_token=$token"
+                            return url
+                        }
+                    }
+
+                    MapView(ctx).apply {
+                        setTileSource(mapboxTileSource)
+                        setMultiTouchControls(true)
+                        controller.setZoom(16.5)
+                        // Força a limpeza de cache para garantir que não haja "lixo" antigo
+                        tileProvider.clearTileCache()
+                        mapaRef = this
+                    }
+                },
+                update = { mapa ->
+                    // Limpa tudo o que foi desenhado anteriormente para evitar fantasmas na tela
+                    mapa.overlays.removeAll { it is Polyline || it is Marker }
+
+                    // 1. Desenha a linha azul da rota salva
+                    if (pontosRotaPassageiro.isNotEmpty()) {
+                        val linhaVisual = Polyline(mapa).apply {
+                            setPoints(pontosRotaPassageiro)
+                            outlinePaint.color = android.graphics.Color.parseColor("#0000FF")
+                            outlinePaint.strokeWidth = 10f
+                        }
+                        mapa.overlays.add(linhaVisual)
+                    }
+
+                    // 2. Desenha o Carrinho do Motorista em movimento
+                    coordenadaMotoristaReal?.let { pontoCarro ->
+                        val marcadorMotorista = Marker(mapa).apply {
+                            position = pontoCarro
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            title = "Motorista vindo"
+                            icon = criarMarcadorVeiculoIcon(iconeVeiculoConfirmado)
+                        }
+                        mapa.overlays.add(marcadorMotorista)
+                    }
+
+                    // 3. Desenha você no mapa
+                    val pontoPassageiro = GeoPoint(latitudeAtual, longitudeAtual)
+                    val marcadorPassageiro = Marker(mapa).apply {
+                        position = pontoPassageiro
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        title = "Você está aqui 🙋‍♂️"
+                    }
+                    mapa.overlays.add(marcadorPassageiro)
+
+                    mapa.invalidate()
+                },
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -581,7 +797,7 @@ fun MapaEmergencialScreen(
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.Top // 🟢 Ajustado para Top
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         OutlinedTextField(
@@ -620,6 +836,36 @@ fun MapaEmergencialScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             singleLine = true
                                         )
+
+// 🟢 CORREÇÃO: A lista de sugestões agora nasce EXATAMENTE abaixo do destino
+                                        if (expandido && sugestoes.isNotEmpty()) {
+                                            Card(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .heightIn(max = 200.dp)
+                                                    .padding(top = 4.dp), // Apenas um respiro de 4.dp
+                                                shape = RoundedCornerShape(8.dp),
+                                                elevation = CardDefaults.cardElevation(4.dp),
+                                                colors = CardDefaults.cardColors(containerColor = Color.White)
+                                            ) {
+                                                LazyColumn {
+                                                    items(sugestoes) { endereco ->
+                                                        Text(
+                                                            text = endereco,
+                                                            fontSize = 13.sp,
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clickable {
+                                                                    enderecoDestino = endereco
+                                                                    expandido = false
+                                                                }
+                                                                .padding(12.dp)
+                                                        )
+                                                        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
 
                                     Spacer(modifier = Modifier.width(12.dp))
@@ -631,22 +877,6 @@ fun MapaEmergencialScreen(
                                             .size(44.dp)
                                     ) {
                                         Icon(imageVector = Icons.Default.Add, contentDescription = "Adicionar parada", tint = Color.White)
-                                    }
-                                }
-
-                                if (expandido && sugestoes.isNotEmpty()) {
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth().padding(top = 114.dp).heightIn(max = 200.dp),
-                                        shape = RoundedCornerShape(8.dp),
-                                        elevation = CardDefaults.cardElevation(4.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White)
-                                    ) {
-                                        LazyColumn {
-                                            items(sugestoes) { endereco ->
-                                                Text(text = endereco, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().clickable { enderecoDestino = endereco; expandido = false }.padding(12.dp))
-                                                HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
-                                            }
-                                        }
                                     }
                                 }
                             }
@@ -683,11 +913,46 @@ fun MapaEmergencialScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
+                            Spacer(modifier = Modifier.height(8.dp))
+
+// 🟢 NOVO: Botão dinâmico Seletor de Pagamento (Estilo Uber)
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { mostrarModalPagamento = true }
+                                    .padding(vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF5F5F5)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(text = if (formaPagamentoSelecionada.contains("Pix")) "⚡" else "💵", fontSize = 18.sp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(text = formaPagamentoSelecionada, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.Black)
+                                    }
+                                    Text(text = "Alterar >", fontSize = 12.sp, color = AzulPrincipal, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
                             Button(
                                 onClick = {
                                     if (enderecoDestino.trim().isNotEmpty()) {
-                                        aoChamarMotorista(enderecoDestino, tipoVeiculoSelecionado) { idGerado ->
-                                            corridaCriadaId = idGerado
+                                        // 🟢 Modificado: Antes de solicitar, verifica na nuvem se o passageiro tem débitos
+                                        PagamentoEmergenteService.verificarDebitoPassageiro(BancoDeDados.tokenSessao) { bloqueado, msg, detalhes ->
+                                            if (bloqueado && detalhes != null) {
+                                                mostrarAlertaDebito = detalhes
+                                            } else {
+                                                // Sem dívidas, segue o fluxo normal de chamada!
+                                                aoChamarMotorista(enderecoOrigem, enderecoDestino, tipoVeiculoSelecionado) { idGerado ->
+                                                    corridaCriadaId = idGerado
+                                                }
+                                            }
                                         }
                                     }
                                 },
@@ -701,7 +966,7 @@ fun MapaEmergencialScreen(
                         } else {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    // SUBSTITUÍDO O 🚗 POR $iconeVeiculoConfirmado ABAIXO:
+// SUBSTITUÍDO O 🚗 POR $iconeVeiculoConfirmado ABAIXO:
                                     text = if (statusCorridaPassageiro == "Em Viagem") "$iconeVeiculoConfirmado Viagem em Andamento!" else if (statusCorridaPassageiro == "Aceita") "✅ Motorista a Caminho!" else "⚡ Procurando parceiros próximos...",
                                     fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (statusCorridaPassageiro == "Procurando") AzulPrincipal else Color(0xFF2E7D32)
                                 )
@@ -847,21 +1112,27 @@ fun MapaEmergencialScreen(
                                             Button(
                                                 onClick = {
                                                     val idCorrida = corridaFixa.optInt("id", 0)
-                                                    BancoDeDados.atualizarStatusCorridaEmergenteNuvem(idCorrida, "Em Viagem") { sucesso ->
-                                                        if (sucesso) {
-                                                            corridaFixa.put("status", "Em Viagem")
-                                                            val latO = corridaFixa.optDouble("origem_latitude", latitudeAtual)
-                                                            val lngO = corridaFixa.optDouble("origem_longitude", longitudeAtual)
-                                                            val latD = corridaFixa.optDouble("destino_latitude", latitudeAtual)
-                                                            val lngD = corridaFixa.optDouble("destino_longitude", longitudeAtual)
+                                                    BancoDeDados.atualizarStatusCorridaEmergenteNuvem(
+                                                        corridaId = idCorrida,
+                                                        statusAlvo = "Em Viagem",
+                                                        pago = true, // Valor padrão temporário para iniciar a viagem
+                                                        valorCorrida = 0.0, // Valor padrão temporário para iniciar a viagem
+                                                        aoConcluir = { sucesso ->
+                                                            if (sucesso) {
+                                                                corridaFixa.put("status", "Em Viagem")
+                                                                val latO = corridaFixa.optDouble("origem_latitude", latitudeAtual)
+                                                                val lngO = corridaFixa.optDouble("origem_longitude", longitudeAtual)
+                                                                val latD = corridaFixa.optDouble("destino_latitude", latitudeAtual)
+                                                                val lngD = corridaFixa.optDouble("destino_longitude", longitudeAtual)
 
-                                                            val tipoVeic = corridaFixa.optString("veiculo_tipo", "Carro")
-                                                            val emj = if (tipoVeic.startsWith("Moto")) "🏍️" else "🚗"
+                                                                val tipoVeic = corridaFixa.optString("veiculo_tipo", "Carro")
+                                                                val emj = if (tipoVeic.startsWith("Moto")) "🏍️" else "🚗"
 
-                                                            tracarRotaNoMapa(latO, lngO, latD, lngD, "#2ECC71", "Embarque 📍", "Destino Final 🏁", forcarMovimentacaoCamera = true, emojiMarcadorCustom = emj)
-                                                            Toast.makeText(contexto, "Viagem iniciada! Siga rumo ao destino.", Toast.LENGTH_SHORT).show()
+                                                                tracarRotaNoMapa(latO, lngO, latD, lngD, "#2ECC71", "Embarque 📍", "Destino Final 🏁", forcarMovimentacaoCamera = true, emojiMarcadorCustom = emj)
+                                                                Toast.makeText(contexto, "Viagem iniciada! Siga rumo ao destino.", Toast.LENGTH_SHORT).show()
+                                                            }
                                                         }
-                                                    }
+                                                    )
                                                 },
                                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5)),
                                                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -871,16 +1142,8 @@ fun MapaEmergencialScreen(
 
                                         Button(
                                             onClick = {
-                                                val idCorrida = corridaFixa.optInt("id", 0)
-                                                BancoDeDados.atualizarStatusCorridaEmergenteNuvem(idCorrida, "Finalizada") { sucesso ->
-                                                    if (sucesso) {
-                                                        corridaAceitaPeloMotoristaReal = null
-                                                        aoAtualizarCorridaAceitaMotoristaGlobal(null)
-                                                        BancoDeDados.corridasEmergentesDisponiveis.clear()
-                                                        mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
-                                                        Toast.makeText(contexto, "Corrida concluída com sucesso!", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                }
+// 🟢 Agora abre a confirmação financeira antes de finalizar
+                                                mostrarConfirmacaoFaturamentoMotorista = true
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
                                             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -959,6 +1222,208 @@ fun MapaEmergencialScreen(
                     }
                 }
             }
+        }
+    }
+
+// ==========================================
+// 🟢 DIÁLOGO 1: SELECIONAR FORMA DE PAGAMENTO (PASSAGEIRO)
+// ==========================================
+    if (mostrarModalPagamento) {
+        AlertDialog(
+            onDismissRequest = { mostrarModalPagamento = false },
+            title = { Text("Selecione o Método", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { formaPagamentoSelecionada = "Dinheiro 💵"; mostrarModalPagamento = false }.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("💵", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Dinheiro", fontSize = 16.sp)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { formaPagamentoSelecionada = "Pix Inteligente ⚡"; mostrarModalPagamento = false }.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("⚡", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Pix Integrado", fontSize = 16.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { mostrarModalPagamento = false }) { Text("Fechar") }
+            }
+        )
+    }
+
+// ==========================================
+// 🟢 DIÁLOGO 2: ALERTA DE DÉBITO PENDENTE (BLOQUEIO COM PIX REAL DE R$ 0,01)
+// ==========================================
+    if (mostrarAlertaDebito != null) {
+        val detalhes = mostrarAlertaDebito!!
+        val valorFita = detalhes.optDouble("valor", 0.0)
+        val corridaIdDívida = detalhes.optInt("corrida_id", 0)
+
+        var carregandoPixMapa by remember { mutableStateOf(false) }
+        var pixCopiaColaMapa by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Débito Pendente 🚨", color = Color.Red, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("O sistema identificou que você não realizou o pagamento de uma corrida anterior (R$ ${String.format("%.2f", valorFita)}).", fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Gere o Pix de teste (R$ 0,01) para desbloquear suas solicitações.", fontSize = 12.sp, color = Color.Gray)
+
+                    if (pixCopiaColaMapa != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Código Copia e Cola Gerado!", fontWeight = FontWeight.Bold, color = VerdeBotao, fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                if (pixCopiaColaMapa == null) {
+                    Button(
+                        onClick = {
+                            carregandoPixMapa = true
+                            PagamentoEmergenteService.gerarPixDebitoPassageiro(corridaIdDívida, BancoDeDados.tokenSessao) { sucesso, msg, copiaCola, _, _ ->
+                                carregandoPixMapa = false
+                                if (sucesso && copiaCola != null) {
+                                    pixCopiaColaMapa = copiaCola
+                                    val clipboard = contexto.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("Pix Copia e Cola", copiaCola)
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(contexto, "Código Pix de R$ 0,01 copiado para a área de transferência!", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(contexto, msg, Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
+                        enabled = !carregandoPixMapa
+                    ) { Text(if (carregandoPixMapa) "Gerando..." else "Gerar Pix (R$ 0,01) ⚡") }
+                } else {
+                    Button(
+                        onClick = {
+                            val clipboard = contexto.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val clip = android.content.ClipData.newPlainText("Pix Copia e Cola", pixCopiaColaMapa)
+                            clipboard.setPrimaryClip(clip)
+                            Toast.makeText(contexto, "Código Pix copiado novamente!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal)
+                    ) { Text("Copiar Pix Novamente 📋") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarAlertaDebito = null }) { Text("Depois", color = Color.Gray) }
+            }
+        )
+    }
+
+// ==========================================
+// 🟢 DIÁLOGO 3: FINALIZAÇÃO E COMPROVAÇÃO FINANCEIRA (MOTORISTA)
+// ==========================================
+    if (mostrarConfirmacaoFaturamentoMotorista) {
+        val corridaFixa = corridaAceitaPeloMotoristaReal
+        if (corridaFixa != null) {
+            val idCorrida = corridaFixa.optInt("id", 0)
+            var valorDigitado by remember { mutableStateOf("15.00") } // Valor sugestivo padrão
+
+            AlertDialog(
+                onDismissRequest = { mostrarConfirmacaoFaturamentoMotorista = false },
+                title = { Text("Finalizar e Cobrar 💳", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Confirme o valor final cobrado ao passageiro:", fontSize = 14.sp)
+                        OutlinedTextField(
+                            value = valorDigitado,
+                            onValueChange = { valorDigitado = it },
+                            label = { Text("Valor em R$") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val vDecimal = valorDigitado.toDoubleOrNull() ?: 0.0
+                            mostrarConfirmacaoFaturamentoMotorista = false
+// Finaliza indicando que o passageiro PAGOU com sucesso
+                            BancoDeDados.atualizarStatusCorridaEmergenteNuvem(
+                                corridaId = idCorrida,
+                                statusAlvo = "Finalizada",
+                                pago = true,
+                                valorCorrida = vDecimal,
+                                aoConcluir = { sucesso ->
+                                    if (sucesso) {
+                                        corridaAceitaPeloMotoristaReal = null
+                                        aoAtualizarCorridaAceitaMotoristaGlobal(null)
+                                        BancoDeDados.corridasEmergentesDisponiveis.clear()
+                                        mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
+                                        Toast.makeText(contexto, "Corrida concluída! Recebimento confirmado.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao)
+                    ) { Text("Confirmar Recebimento ✅") }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            val vDecimal = valorDigitado.toDoubleOrNull() ?: 0.0
+                            mostrarConfirmacaoFaturamentoMotorista = false
+// Finaliza indicando que o passageiro NÃO PAGOU (bloqueando o caloteiro na hora!)
+                            BancoDeDados.atualizarStatusCorridaEmergenteNuvem(
+                                corridaId = idCorrida,
+                                statusAlvo = "Finalizada",
+                                pago = false,
+                                valorCorrida = vDecimal,
+                                aoConcluir = { sucesso ->
+                                    if (sucesso) {
+                                        corridaAceitaPeloMotoristaReal = null
+                                        aoAtualizarCorridaAceitaMotoristaGlobal(null)
+                                        BancoDeDados.corridasEmergentesDisponiveis.clear()
+                                        mapaRef?.overlays?.removeAll { it is Polyline || it is Marker }; mapaRef?.invalidate()
+                                        Toast.makeText(contexto, "Corrida encerrada. Calote reportado!", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            )
+                        }
+                    ) { Text("Não recebi (Reportar Calote ❌)", color = Color.Red) }
+                }
+            )
+        }
+    }
+}
+
+// Função para buscar endereços usando o Mapbox
+// FUNÇÃO DE BUSCA DO MAPBOX - ALTA PRECISÃO
+fun buscarEnderecoMapbox(texto: String, token: String, onResult: (List<String>) -> Unit) {
+    val urlString = "https://api.mapbox.com/geocoding/v5/mapbox.places/${texto.replace(" ", "%20")}.json?access_token=$token&country=br&language=pt&autocomplete=true"
+
+    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+        try {
+            val url = URL(urlString)
+            val conexao = url.openConnection() as HttpURLConnection
+            if (conexao.responseCode == 200) {
+                val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(resposta)
+                val features = json.getJSONArray("features")
+                val sugestoes = mutableListOf<String>()
+
+                for (i in 0 until features.length()) {
+                    val placeName = features.getJSONObject(i).getString("place_name")
+                    sugestoes.add(placeName)
+                }
+                withContext(Dispatchers.Main) { onResult(sugestoes) }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

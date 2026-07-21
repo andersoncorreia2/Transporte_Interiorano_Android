@@ -1,6 +1,7 @@
 package com.example.transporte_interiorano.telas
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -139,6 +140,10 @@ fun CadastroScreen(
     var senhaVisivel by remember { mutableStateOf(false) }
     var cpfJaExiste by remember { mutableStateOf(false) }
 
+    // 🟢 ADIÇÃO: Estados dos Termos
+    var termosAceitos by remember { mutableStateOf(false) }
+    var showPlaceholderTermos by remember { mutableStateOf(false) }
+
     var usuarioDisponivel by remember { mutableStateOf(true) }
     val sugestoesNomes = remember { mutableStateListOf<String>() }
     var ufExpandido by remember { mutableStateOf(false) }
@@ -147,17 +152,26 @@ fun CadastroScreen(
     val estadosBrasil = listOf("AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO")
 
     LaunchedEffect(nome) {
+        // 🟢 DEBOUNCE: Aguarda 500ms após o usuário parar de digitar
+        delay(500)
+
         val nomeTratado = nome.trim()
-        if (nomeTratado.contains(" ")) {
+
+        // 🟢 VALIDAÇÃO: Só chama o banco se não estiver vazio e tiver um espaço
+        if (nomeTratado.isNotBlank() && nomeTratado.contains(" ")) {
             val partes = nomeTratado.split("\\s+".toRegex())
             if (partes.size >= 2) {
                 val combinacaoBase = "${partes.first().lowercase()}.${partes.last().lowercase()}"
-                username = combinacaoBase
-                BancoDeDados.verificarDisponibilidadeUsuario(combinacaoBase) { livre, lista ->
-                    usuarioDisponivel = livre
-                    sugestoesNomes.clear()
-                    if (!livre) {
-                        sugestoesNomes.addAll(lista)
+
+                // Evita chamar o banco se o username for exatamente o que já está na tela
+                if (username != combinacaoBase) {
+                    username = combinacaoBase
+                    BancoDeDados.verificarDisponibilidadeUsuario(combinacaoBase) { livre, lista ->
+                        usuarioDisponivel = livre
+                        sugestoesNomes.clear()
+                        if (!livre) {
+                            sugestoesNomes.addAll(lista)
+                        }
                     }
                 }
             }
@@ -398,23 +412,63 @@ fun CadastroScreen(
                 }
             }
 
+            // 🟢 ADIÇÃO: Row do Checkbox (Termos)
+            Row(
+                modifier = Modifier.padding(vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = termosAceitos,
+                    onCheckedChange = { termosAceitos = it }
+                )
+                Text(
+                    text = "Li e concordo com os Termos de Uso e Política de Privacidade",
+                    modifier = Modifier.clickable { showPlaceholderTermos = true },
+                    color = AzulPrincipal,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // 🟢 AVISO TEMPORÁRIO (Dialog)
+            if (showPlaceholderTermos) {
+                AlertDialog(
+                    onDismissRequest = { showPlaceholderTermos = false },
+                    title = { Text("Termos em Desenvolvimento") },
+                    text = { Text("Estamos redigindo nossos Termos de Uso e Política de Privacidade. Em breve estarão disponíveis para consulta.") },
+                    confirmButton = {
+                        Button(onClick = { showPlaceholderTermos = false }) { Text("OK") }
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(4.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                // DEPOIS
+
+// 1. Defina a regra de validação antes do botão
+                val isFormValid = termosAceitos && !cpfJaExiste && usuarioDisponivel && username.isNotBlank() && senhaValida && senha == confirmarSenha
+
+// 2. O botão utiliza o estado de habilitação
                 Button(
                     onClick = {
-                        // 🟢 ALTERADO CIRURGICAMENTE: Só permite cadastrar se a senha cumprir os requisitos e coincidir com a confirmação
-                        if (!cpfJaExiste && usuarioDisponivel && username.isNotBlank() && senhaValida && senha == confirmarSenha) {
-                            val veiculoFinal = if (ofertarCarona) "$tipoVeiculo - $veiculo" else ""
-                            val placaFinal = if (ofertarCarona) placa.uppercase() else ""
-                            val vagasFinal = if (ofertarCarona) vagas else "0"
+                        // O código aqui fica limpo, pois só executa se o botão estiver enabled
+                        val veiculoFinal = if (ofertarCarona) "$tipoVeiculo - $veiculo" else ""
+                        val placaFinal = if (ofertarCarona) placa.uppercase() else ""
+                        val vagasFinal = if (ofertarCarona) vagas else "0"
 
-                            aoConcluirCadastro(nome, cpf, telefone, email, senha, veiculoFinal, placaFinal, vagasFinal, rua, numero, complemento, bairro, cidade, estado, cep, username)
-                        }
+                        aoConcluirCadastro(nome, cpf, telefone, email, senha, veiculoFinal, placaFinal, vagasFinal, rua, numero, complemento, bairro, cidade, estado, cep, username)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (cpfJaExiste || !usuarioDisponivel) Color.Gray else VerdeBotao),
-                    modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(8.dp)
-                ) { Text("Concluir Cadastro", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                    enabled = isFormValid, // 🟢 O botão bloqueia cliques automaticamente se for false
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = VerdeBotao,          // Cor quando ativo
+                        disabledContainerColor = Color.Gray   // 🟢 Cor automática quando desativado
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Concluir Cadastro", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
 
                 OutlinedButton(
                     onClick = {

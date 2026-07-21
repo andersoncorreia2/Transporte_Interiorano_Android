@@ -1087,18 +1087,27 @@ object BancoDeDados {
     }
 
     // 🟢 FUNÇÃO ADICIONADA: Altera dinamicamente o status do modo emergencial via PUT seguro com JWT
-    fun atualizarStatusCorridaEmergenteNuvem(corridaId: Int, statusAlvo: String, aoConcluir: (Boolean) -> Unit) {
+    // 🟢 VERSÃO FINANCEIRA ATUALIZADA: Altera o status e envia reporte de pagamento e valor
+    fun atualizarStatusCorridaEmergenteNuvem(
+        corridaId: Int,
+        statusAlvo: String,
+        pago: Boolean,
+        valorCorrida: Double,
+        aoConcluir: (Boolean) -> Unit
+    ) {
         thread {
             try {
                 val url = URL("$BASE_URL/corridas/emergentes/atualizar_status/$corridaId")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "PUT"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao") // Autenticação ativa do Motorista
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
                 conexao.doOutput = true
 
                 val json = JSONObject().apply {
                     put("status", statusAlvo)
+                    put("pago", pago)
+                    put("valor_corrida", valorCorrida)
                 }
 
                 val escritor = OutputStreamWriter(conexao.outputStream)
