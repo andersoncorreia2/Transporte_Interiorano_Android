@@ -9,7 +9,7 @@ import java.net.URL
 import kotlin.concurrent.thread
 
 object PagamentoEmergenteService {
-    private const val BASE_URL = BancoDeDados.BASE_URL
+    private val BASE_URL = BancoDeDados.BASE_URL
 
     // 🟢 PASSAGEIRO: Verifica se tem corridas anteriores não pagas (Com trava anti-401)
     fun verificarDebitoPassageiro(tokenSessao: String, aoConcluir: (Boolean, String, JSONObject?) -> Unit) {

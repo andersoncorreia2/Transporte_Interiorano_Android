@@ -9,7 +9,7 @@ import java.net.URL
 import kotlin.concurrent.thread
 
 object PagamentoProgramadoService {
-    private const val BASE_URL = BancoDeDados.BASE_URL
+    private val BASE_URL = BancoDeDados.BASE_URL
 
     // 🟢 PASSAGEIRO: Solicita o Pix real de R$ 5,00 (Taxa de Reserva) com ID da solicitação
     fun gerarPixTaxaReserva(

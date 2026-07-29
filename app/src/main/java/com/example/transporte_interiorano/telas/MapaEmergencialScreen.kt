@@ -55,8 +55,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.roundToInt
 import org.osmdroid.util.MapTileIndex
-//import com.example.transporte_interiorano.BuildConfig
-import com.example.transporte_interiorano.dev.BuildConfig // Importe a classe gerada pelo namespace que você definiu no Gradle
+import com.example.transporte_interiorano.BuildConfig
 
 
 @OptIn(ExperimentalMaterial3Api::class)
