@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
                     var usuarioBloqueadoGlobal by remember { mutableStateOf(false) }
                     var detalhesDebito by remember { mutableStateOf<JSONObject?>(null) }
                     var verificandoBloqueio by remember { mutableStateOf(true) }
+                    var bloqueadoPorCalote by remember { mutableStateOf(false) }
 
                     // 2. Variáveis de Navegação e Estado do Usuário
                     var telaAtual by rememberSaveable { mutableStateOf(if (veioDaNotificacao) "mapaEmergencial" else "splash") }
@@ -292,23 +293,25 @@ class MainActivity : ComponentActivity() {
                             )
 
                             "criarEvento" -> CriarEventoScreen(
-                                aoPublicarEvento = { nome, cidOri, endOri, cidDes, endDes, hor, vag, cpfMotorista ->
+                                aoPublicarEvento = { nome, cidOri, endOri, cidDes, endDes, hor, vag, valorTotal, nomeMotorista, cpfMotorista ->
                                     BancoDeDados.enviarCaronaParaServidor(
-                                        nome,
-                                        cidOri,
-                                        endOri,
-                                        cidDes,
-                                        endDes,
-                                        hor,
-                                        vag,
-                                        nomeLogado,
-                                        cpfMotorista
+                                        nomeEvento = nome,
+                                        cidadeOrigem = cidOri,
+                                        enderecoOrigem = endOri,
+                                        cidadeDestino = cidDes,
+                                        enderecoDestino = endDes,
+                                        horario = hor,
+                                        vagas = vag,
+                                        valorCorrida = valorTotal, // 🟢 Passando o valor da corrida
+                                        motorista = nomeMotorista,
+                                        motoristaCpf = cpfMotorista
                                     )
                                     BancoDeDados.temEventoAtivo = true
                                     telaAtual = "status"
                                 },
                                 aoClicarSair = { telaAtual = "status" },
-                                cpfLogado = cpfLogado
+                                cpfLogado = cpfLogado,
+                                nomeLogado = nomeLogado // 🟢 Passando o parâmetro exigido pela tela
                             )
 
                             "listaCaronas" -> ListaCaronasScreen(
@@ -385,7 +388,7 @@ class MainActivity : ComponentActivity() {
                             "editarEvento" -> {
                                 EditarEventoScreen(
                                     caronaInfo = caronaSelecionada,
-                                    aoSalvarAlteracao = { ev, cidO, endO, cidD, endD, hor, vag ->
+                                    aoSalvarAlteracao = { ev, cidO, endO, cidD, endD, hor, vag, valorTotal ->
                                         android.util.Log.d("EDITAR_EVENTO", "MainActivity recebeu os dados. caronaSelecionada é nula? ${caronaSelecionada == null}")
 
                                         caronaSelecionada?.let { carona ->
@@ -400,6 +403,7 @@ class MainActivity : ComponentActivity() {
                                                 enderecoDestino = endD,
                                                 horario = hor,
                                                 vagas = vag,
+                                                valorCorrida = valorTotal,
                                                 aoConcluir = { sucesso ->
                                                     android.util.Log.d("EDITAR_EVENTO", "Resposta do servidor recebida. Sucesso = $sucesso")
 
@@ -540,6 +544,7 @@ class MainActivity : ComponentActivity() {
                                                         latDestino = latDestinoReal,
                                                         lngDestino = lngDestinoReal,
                                                         veiculoTipo = tipoVeiculoSelecionado,
+                                                        formaPagamento = "Dinheiro",
                                                         aoConcluir = { sucesso, mensagemServidor, idCorridaReal ->
                                                             contextoAndroid.runOnUiThread {
                                                                 if (sucesso) {

@@ -184,6 +184,9 @@ fun CartaoEventoMotorista(
             Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text("👥 Vagas Livres: $vagasRestantes/$totalVagas", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao)
 
+            // 🟢 ADICIONADO: Exibe o valor total da corrida no cartão do motorista
+            Text("💰 Valor Total: R$ ${carona.valor_corrida}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
+
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(thickness = 1.dp, color = Color.LightGray)
 

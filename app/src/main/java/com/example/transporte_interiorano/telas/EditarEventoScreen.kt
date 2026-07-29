@@ -23,7 +23,7 @@ import com.example.transporte_interiorano.ui.theme.VerdeBotao
 fun EditarEventoScreen(
     caronaInfo: Carona?,
     // ALTERADO: Agora passamos os dados salvos de volta como parâmetros
-    aoSalvarAlteracao: (String, String, String, String, String, String, String) -> Unit,
+    aoSalvarAlteracao: (String, String, String, String, String, String, String, String) -> Unit,
     aoClicarVoltar: () -> Unit
 ) {
     // Estados que iniciam preenchidos com os dados atuais da carona selecionada
@@ -34,6 +34,7 @@ fun EditarEventoScreen(
     var enderecoDestino by remember { mutableStateOf(caronaInfo?.endereco_destino ?: "") }
     var horario by remember { mutableStateOf(caronaInfo?.horario ?: "") }
     var vagas by remember { mutableStateOf(caronaInfo?.vagas ?: "") }
+    var valorCorrida by remember { mutableStateOf(caronaInfo?.valor_corrida ?: "") }
 
     var mensagemErro by remember { mutableStateOf("") }
     var estaCarregando by remember { mutableStateOf(false) }
@@ -115,6 +116,13 @@ fun EditarEventoScreen(
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
         )
 
+        OutlinedTextField(
+            value = valorCorrida,
+            onValueChange = { valorCorrida = it },
+            label = { Text("💰 Valor Total (R$)") },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        )
+
         if (mensagemErro.isNotEmpty()) {
             Text(
                 text = mensagemErro,
@@ -143,14 +151,15 @@ fun EditarEventoScreen(
                     val endD = enderecoDestino.trim()
                     val hor = horario.trim()
                     val vag = vagas.trim()
+                    val valCorrida = valorCorrida.trim()
 
                     if (ev.isBlank() || cidO.isBlank() || endO.isBlank() ||
-                        cidD.isBlank() || endD.isBlank() || hor.isBlank() || vag.isBlank()) {
+                        cidD.isBlank() || endD.isBlank() || hor.isBlank() || vag.isBlank() || valCorrida.isBlank()) {
                         mensagemErro = "Preencha todos os campos antes de salvar!"
                     } else {
                         mensagemErro = ""
-                        estaCarregando = true // 🟢 Ativa o indicador visual na hora!
-                        aoSalvarAlteracao(ev, cidO, endO, cidD, endD, hor, vag)
+                        estaCarregando = true
+                        aoSalvarAlteracao(ev, cidO, endO, cidD, endD, hor, vag, valCorrida)
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),

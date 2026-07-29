@@ -127,11 +127,14 @@ fun MapaEmergencialScreen(
     val paradasExtras = remember { mutableStateListOf<String>() }
     var tipoVeiculoSelecionado by remember { mutableStateOf("Carro") }
 
-// 🟢 NOVOS ESTADOS DE PAGAMENTO (ESTILO UBER)
+    // 🟢 NOVOS ESTADOS DE PAGAMENTO (ESTILO UBER)
     var formaPagamentoSelecionada by remember { mutableStateOf("Dinheiro 💵") }
     var mostrarModalPagamento by remember { mutableStateOf(false) }
     var mostrarAlertaDebito by remember { mutableStateOf<JSONObject?>(null) }
     var mostrarConfirmacaoFaturamentoMotorista by remember { mutableStateOf(false) }
+
+    // 🟢 ESTADO DA TELA DE VALIDAÇÃO DE IDENTIDADE
+    var mostrarTelaValidacaoIdentidade by remember { mutableStateOf(false) }
 
     val sugestoes = remember { mutableStateListOf<String>() }
     var expandido by remember { mutableStateOf(false) }
@@ -142,6 +145,12 @@ fun MapaEmergencialScreen(
     var offsetY by remember { mutableStateOf(0f) }
     var primeiraCentralizacaoRealizada by remember { mutableStateOf(false) }
     var deixarCameraLivrePassageiro by remember { mutableStateOf(false) }
+
+    // 🟢 NOVOS ESTADOS PARA O FLUXO 1 (PAGAMENTO ANTECIPADO)
+    var mostrarModalPixAntecipado by remember { mutableStateOf(false) }
+    var pixCopiaColaAntecipado by remember { mutableStateOf<String?>(null) }
+    var corridaIdPendentePagamento by remember { mutableStateOf<Int?>(null) }
+    var carregandoVerificacaoPix by remember { mutableStateOf(false) }
 
     val chamadosRecusadosIds = remember { mutableStateListOf<Int>() }
 
@@ -180,7 +189,7 @@ fun MapaEmergencialScreen(
                             val addressObj = json.optJSONObject("address")
 
                             if (addressObj != null) {
-// 1. Tenta capturar o nome da via ou local abrangendo mais categorias do mapa
+                                // 1. Tenta capturar o nome da via ou local abrangendo mais categorias do mapa
                                 var localPrincipal = addressObj.optString("road", "").trim()
                                 if (localPrincipal.isEmpty()) localPrincipal = addressObj.optString("street", "").trim()
                                 if (localPrincipal.isEmpty()) localPrincipal = addressObj.optString("highway", "").trim()
@@ -190,17 +199,17 @@ fun MapaEmergencialScreen(
 
                                 val numero = addressObj.optString("house_number", "").trim()
 
-// 2. Busca Bairro
+                                // 2. Busca Bairro
                                 var bairro = addressObj.optString("suburb", "").trim()
                                 if (bairro.isEmpty()) bairro = addressObj.optString("neighbourhood", "").trim()
                                 if (bairro.isEmpty()) bairro = addressObj.optString("city_district", "").trim()
 
-// 3. Pega Estado, CEP e País
+                                // 3. Pega Estado, CEP e País
                                 val estado = addressObj.optString("state", "").trim()
                                 val cep = addressObj.optString("postcode", "").trim()
                                 val pais = addressObj.optString("country", "").trim()
 
-// 4. Monta o endereço de forma inteligente usando uma Lista
+                                // 4. Monta o endereço de forma inteligente usando uma Lista
                                 val partesEndereco = mutableListOf<String>()
 
                                 if (localPrincipal.isNotEmpty()) {
@@ -212,14 +221,14 @@ fun MapaEmergencialScreen(
                                 if (bairro.isNotEmpty()) partesEndereco.add(bairro)
                                 if (cidadeReal.isNotBlank() && cidadeReal != bairro) partesEndereco.add(cidadeReal)
                                 if (estado.isNotEmpty()) partesEndereco.add(estado)
-//if (cep.isNotEmpty()) partesEndereco.add(cep)
+                                //if (cep.isNotEmpty()) partesEndereco.add(cep)
                                 if (pais.isNotEmpty()) partesEndereco.add(pais)
 
-// 5. Junta todas as partes encontradas separando-as com vírgula e espaço
+                                // 5. Junta todas as partes encontradas separando-as com vírgula e espaço
                                 if (partesEndereco.isNotEmpty()) {
                                     enderecoOrigem = partesEndereco.joinToString(", ")
                                 } else {
-// Se o OpenStreetMap bugar completamente, pega a string crua dele
+                                // Se o OpenStreetMap bugar completamente, pega a string crua dele
                                     enderecoOrigem = json.optString("display_name", "Localização Desconhecida")
                                 }
                             } else {
@@ -325,15 +334,27 @@ fun MapaEmergencialScreen(
         }
     }
 
-    LaunchedEffect(corridaCriadaId, statusCorridaPassageiro, tempoToleranciaCancelamento) {
-        if (corridaCriadaId != null && statusCorridaPassageiro == "Aceita") {
-            if (tempoToleranciaCancelamento > 0) {
+    // 🟢 CRONÔMETRO BLINDADO: Baseado em tempo real do sistema (não para ao sair da tela)
+    LaunchedEffect(statusCorridaPassageiro) {
+        if (statusCorridaPassageiro == "Aceita") {
+            // Só define um novo tempo se ainda não houver um epoch ativo gravado
+            if (BancoDeDados.deadlineCancelamentoEpoch == 0L) {
+                BancoDeDados.deadlineCancelamentoEpoch = System.currentTimeMillis() + 180_000L
+            }
+
+            while (statusCorridaPassageiro == "Aceita") {
+                val agora = System.currentTimeMillis()
+                val restoMs = BancoDeDados.deadlineCancelamentoEpoch - agora
+                val segundosRestantes = (restoMs / 1000).coerceAtLeast(0).toInt()
+
+                tempoToleranciaCancelamento = segundosRestantes
+                aoAtualizarTempoCancelamentoGlobal(segundosRestantes)
+
+                if (segundosRestantes <= 0) break
                 delay(1000)
-                val proximoSegundo = tempoToleranciaCancelamento - 1
-                tempoToleranciaCancelamento = proximoSegundo
-                aoAtualizarTempoCancelamentoGlobal(proximoSegundo)
             }
         }
+        // 🟢 REMOVIDO O 'else' que zerava o tempo indevidamente ao transitar estados iniciais!
     }
 
     LaunchedEffect(mapaRef, latitudeAtual, longitudeAtual) {
@@ -403,7 +424,7 @@ fun MapaEmergencialScreen(
                                     position = GeoPoint(latOri, lngOri)
                                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                     title = tituloOrigem
-// 🟢 CORREÇÃO: Se for a posição do motorista (Passageiro olhando), aplica o ícone customizado
+                                    // 🟢 CORREÇÃO: Se for a posição do motorista (Passageiro olhando), aplica o ícone customizado
                                     if (emojiMarcadorCustom != null && !isMotorista) {
                                         icon = criarMarcadorVeiculoIcon(emojiMarcadorCustom)
                                     }
@@ -414,7 +435,7 @@ fun MapaEmergencialScreen(
                                     position = GeoPoint(latDes, lngDes)
                                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                     title = tituloDestino
-// 🟢 CORREÇÃO: Se for a posição do motorista se deslocando (Motorista olhando), aplica o ícone customizado
+                                    // 🟢 CORREÇÃO: Se for a posição do motorista se deslocando (Motorista olhando), aplica o ícone customizado
                                     if (emojiMarcadorCustom != null && isMotorista) {
                                         icon = criarMarcadorVeiculoIcon(emojiMarcadorCustom)
                                     }
@@ -533,6 +554,7 @@ fun MapaEmergencialScreen(
                             aoLimparCorridaGlobal()
                             statusCorridaPassageiro = "Procurando"
                             motoristaVinculadoTexto = ""
+                            BancoDeDados.deadlineCancelamentoEpoch = 0L // 👈 Reseta o cronômetro global
                             // 🟢 Limpa o rastreamento otimizado:
                             pontosRotaPassageiro.clear()
                             coordenadaMotoristaReal = null
@@ -596,6 +618,7 @@ fun MapaEmergencialScreen(
                             motoristaVinculadoTexto = ""
                             deixarCameraLivrePassageiro = false
                             tempoToleranciaCancelamento = 180
+                            BancoDeDados.deadlineCancelamentoEpoch = 0L // 👈 Reseta o cronômetro global
                             enderecoOrigem = ""
                             enderecoDestino = ""
                             paradasExtras.clear()
@@ -837,7 +860,7 @@ fun MapaEmergencialScreen(
                                             singleLine = true
                                         )
 
-// 🟢 CORREÇÃO: A lista de sugestões agora nasce EXATAMENTE abaixo do destino
+                                        // 🟢 CORREÇÃO: A lista de sugestões agora nasce EXATAMENTE abaixo do destino
                                         if (expandido && sugestoes.isNotEmpty()) {
                                             Card(
                                                 modifier = Modifier
@@ -915,7 +938,7 @@ fun MapaEmergencialScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-// 🟢 NOVO: Botão dinâmico Seletor de Pagamento (Estilo Uber)
+                            // 🟢 NOVO: Botão dinâmico Seletor de Pagamento (Estilo Uber)
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -943,14 +966,61 @@ fun MapaEmergencialScreen(
                             Button(
                                 onClick = {
                                     if (enderecoDestino.trim().isNotEmpty()) {
-                                        // 🟢 Modificado: Antes de solicitar, verifica na nuvem se o passageiro tem débitos
                                         PagamentoEmergenteService.verificarDebitoPassageiro(BancoDeDados.tokenSessao) { bloqueado, msg, detalhes ->
                                             if (bloqueado && detalhes != null) {
                                                 mostrarAlertaDebito = detalhes
                                             } else {
-                                                // Sem dívidas, segue o fluxo normal de chamada!
-                                                aoChamarMotorista(enderecoOrigem, enderecoDestino, tipoVeiculoSelecionado) { idGerado ->
-                                                    corridaCriadaId = idGerado
+                                                // 🟢 VERIFICA A FORMA DE PAGAMENTO SELECIONADA PELO PASSAGEIRO
+                                                val ehDinheiro = formaPagamentoSelecionada.contains("Dinheiro", ignoreCase = true)
+
+                                                // 1. Cria a corrida no backend passando a forma de pagamento
+                                                BancoDeDados.criarCorridaEmergenteNuvem(
+                                                    enderecoOrigem = enderecoOrigem,
+                                                    enderecoDestino = enderecoDestino,
+                                                    latOrigem = latitudeAtual,
+                                                    lngOrigem = longitudeAtual,
+                                                    latDestino = 0.0, // Ajuste conforme suas variáveis de destino reais
+                                                    lngDestino = 0.0,
+                                                    veiculoTipo = tipoVeiculoSelecionado,
+                                                    formaPagamento = formaPagamentoSelecionada // 🟢 ENVIA A ESCOLHA
+                                                ) { sucesso, mensagemServidor, idGerado ->
+                                                    if (sucesso && idGerado != null) {
+                                                        if (ehDinheiro) {
+                                                            // 💵 DINHEIRO: Vai direto para o radar, sem Pix antecipado!
+                                                            corridaCriadaId = idGerado
+                                                            Toast.makeText(contexto, "⚡ Procurando motoristas...", Toast.LENGTH_LONG).show()
+                                                        } else {
+                                                            // ⚡ PIX OU CARTÃO: Exige o pagamento antecipado
+                                                            corridaIdPendentePagamento = idGerado
+
+                                                            escopoCorrotina.launch(Dispatchers.IO) {
+                                                                try {
+                                                                    val jsonBody = JSONObject().apply { put("corrida_id", idGerado) }
+                                                                    val url = URL("${BancoDeDados.BASE_URL}/pagamentos/emergente/gerar_pix_corrida")
+                                                                    val conexao = url.openConnection() as HttpURLConnection
+                                                                    conexao.requestMethod = "POST"
+                                                                    conexao.setRequestProperty("Content-Type", "application/json")
+                                                                    conexao.setRequestProperty("Authorization", "Bearer ${BancoDeDados.tokenSessao}")
+                                                                    conexao.doOutput = true
+
+                                                                    conexao.outputStream.write(jsonBody.toString().toByteArray())
+
+                                                                    if (conexao.responseCode == 200) {
+                                                                        val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                                                                        val jsonResp = JSONObject(resposta)
+                                                                        val copiaCola = jsonResp.optString("pix_copia_cola")
+
+                                                                        withContext(Dispatchers.Main) {
+                                                                            pixCopiaColaAntecipado = copiaCola
+                                                                            mostrarModalPixAntecipado = true
+                                                                        }
+                                                                    }
+                                                                } catch (e: Exception) {
+                                                                    e.printStackTrace()
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -966,7 +1036,7 @@ fun MapaEmergencialScreen(
                         } else {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-// SUBSTITUÍDO O 🚗 POR $iconeVeiculoConfirmado ABAIXO:
+                                    // SUBSTITUÍDO O 🚗 POR $iconeVeiculoConfirmado ABAIXO:
                                     text = if (statusCorridaPassageiro == "Em Viagem") "$iconeVeiculoConfirmado Viagem em Andamento!" else if (statusCorridaPassageiro == "Aceita") "✅ Motorista a Caminho!" else "⚡ Procurando parceiros próximos...",
                                     fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (statusCorridaPassageiro == "Procurando") AzulPrincipal else Color(0xFF2E7D32)
                                 )
@@ -1011,6 +1081,7 @@ fun MapaEmergencialScreen(
                                                     corridaCriadaId = null
                                                     aoLimparCorridaGlobal()
                                                     tempoToleranciaCancelamento = 180
+                                                    BancoDeDados.deadlineCancelamentoEpoch = 0L // 👈 Reseta o cronômetro global
                                                     enderecoOrigem = ""
                                                     enderecoDestino = ""
                                                     paradasExtras.clear()
@@ -1142,7 +1213,7 @@ fun MapaEmergencialScreen(
 
                                         Button(
                                             onClick = {
-// 🟢 Agora abre a confirmação financeira antes de finalizar
+                                                // 🟢 Agora abre a confirmação financeira antes de finalizar
                                                 mostrarConfirmacaoFaturamentoMotorista = true
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
@@ -1250,6 +1321,24 @@ fun MapaEmergencialScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Pix Integrado", fontSize = 16.sp)
                     }
+                    // 🟢 ADICIONADO: Cartão de Crédito
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { formaPagamentoSelecionada = "Cartão de Crédito 💳"; mostrarModalPagamento = false }.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("💳", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Cartão de Crédito", fontSize = 16.sp)
+                    }
+                    // 🟢 ADICIONADO: Cartão de Débito
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { formaPagamentoSelecionada = "Cartão de Débito 💳"; mostrarModalPagamento = false }.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("💳", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Cartão de Débito", fontSize = 16.sp)
+                    }
                 }
             },
             confirmButton = {
@@ -1352,7 +1441,6 @@ fun MapaEmergencialScreen(
                         onClick = {
                             val vDecimal = valorDigitado.toDoubleOrNull() ?: 0.0
                             mostrarConfirmacaoFaturamentoMotorista = false
-// Finaliza indicando que o passageiro PAGOU com sucesso
                             BancoDeDados.atualizarStatusCorridaEmergenteNuvem(
                                 corridaId = idCorrida,
                                 statusAlvo = "Finalizada",
@@ -1377,7 +1465,6 @@ fun MapaEmergencialScreen(
                         onClick = {
                             val vDecimal = valorDigitado.toDoubleOrNull() ?: 0.0
                             mostrarConfirmacaoFaturamentoMotorista = false
-// Finaliza indicando que o passageiro NÃO PAGOU (bloqueando o caloteiro na hora!)
                             BancoDeDados.atualizarStatusCorridaEmergenteNuvem(
                                 corridaId = idCorrida,
                                 statusAlvo = "Finalizada",
@@ -1399,7 +1486,109 @@ fun MapaEmergencialScreen(
             )
         }
     }
-}
+
+    // ==========================================
+    // 🟢 DIÁLOGO 4: PAGAMENTO ANTECIPADO DA CORRIDA (FLUXO 1) - DENTRO DA TELA
+    // ==========================================
+    if (mostrarModalPixAntecipado) {
+        AlertDialog(
+            onDismissRequest = {
+                // Ação ao fechar clicando fora
+                val idCorridaAtual = corridaIdPendentePagamento
+                if (idCorridaAtual != null) {
+                    escopoCorrotina.launch(Dispatchers.IO) {
+                        BancoDeDados.cancelarCorridaEmergentePassageiro(idCorridaAtual) { _ -> }
+                    }
+                }
+                mostrarModalPixAntecipado = false
+                corridaIdPendentePagamento = null
+                aoLimparCorridaGlobal()
+            },
+            title = { Text("Pagamento Antecipado ⚡", fontWeight = FontWeight.Bold, color = AzulPrincipal) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Para chamar o motorista, realize o pagamento do Pix de teste (R$ 0,01):", fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = pixCopiaColaAntecipado ?: "Gerando código...", fontSize = 11.sp, color = Color.Gray, maxLines = 3)
+                }
+            },
+            confirmButton = {
+                // 🟢 TODOS OS BOTÕES ORGANIZADOS EM UMA COLUNA VERTICAL ÚNICA
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            val clipboard = contexto.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val clip = android.content.ClipData.newPlainText("Pix Copia e Cola", pixCopiaColaAntecipado)
+                            clipboard.setPrimaryClip(clip)
+                            Toast.makeText(contexto, "Código Pix copiado para a área de transferência!", Toast.LENGTH_LONG).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Pix Copia e Cola 📋") }
+
+                    Button(
+                        onClick = {
+                            val idCorridaAtual = corridaIdPendentePagamento
+                            if (idCorridaAtual != null) {
+                                carregandoVerificacaoPix = true
+                                escopoCorrotina.launch(Dispatchers.IO) {
+                                    try {
+                                        val url = URL("${BancoDeDados.BASE_URL}/pagamentos/emergente/verificar_pagamento_corrida/$idCorridaAtual")
+                                        val conexao = url.openConnection() as HttpURLConnection
+                                        conexao.setRequestProperty("Authorization", "Bearer ${BancoDeDados.tokenSessao}")
+
+                                        if (conexao.responseCode == 200) {
+                                            val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                                            val jsonResp = JSONObject(resposta)
+                                            val pago = jsonResp.optBoolean("pago", false)
+
+                                            withContext(Dispatchers.Main) {
+                                                carregandoVerificacaoPix = false
+                                                if (pago) {
+                                                    mostrarModalPixAntecipado = false
+                                                    corridaCriadaId = idCorridaAtual
+                                                    Toast.makeText(contexto, "✅ Pagamento confirmado! Procurando motoristas...", Toast.LENGTH_LONG).show()
+                                                } else {
+                                                    Toast.makeText(contexto, "⏳ Pagamento ainda não identificado. Pague o Pix e tente novamente.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        withContext(Dispatchers.Main) {
+                                            carregandoVerificacaoPix = false
+                                            Toast.makeText(contexto, "Erro ao verificar pagamento.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
+                        enabled = !carregandoVerificacaoPix,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (carregandoVerificacaoPix) "Verificando..." else "Já Paguei / Verificar ⚡") }
+
+                    // 🟢 BOTÃO DE DESISTIR ABAIXO DOS OUTROS, CANCELANDO O PEDIDO NA NUVEM E RESETANDO A TELA
+                    Button(
+                        onClick = {
+                            val idCorridaAtual = corridaIdPendentePagamento
+                            if (idCorridaAtual != null) {
+                                escopoCorrotina.launch(Dispatchers.IO) {
+                                    BancoDeDados.cancelarCorridaEmergentePassageiro(idCorridaAtual) { _ -> }
+                                }
+                            }
+                            mostrarModalPixAntecipado = false
+                            corridaIdPendentePagamento = null
+                            aoLimparCorridaGlobal()
+                            Toast.makeText(contexto, "Corrida cancelada.", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Desistir / Voltar ❌", color = Color.White, fontWeight = FontWeight.Bold) }
+                }
+            }
+        )
+    }
+} // <--- CHAVE FINAL QUE ENCERRA A FUNÇÃO @Composable MapaEmergencialScreen
 
 // Função para buscar endereços usando o Mapbox
 // FUNÇÃO DE BUSCA DO MAPBOX - ALTA PRECISÃO

@@ -446,10 +446,10 @@ fun CadastroScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 // DEPOIS
 
-// 1. Defina a regra de validação antes do botão
+                // 1. Defina a regra de validação antes do botão
                 val isFormValid = termosAceitos && !cpfJaExiste && usuarioDisponivel && username.isNotBlank() && senhaValida && senha == confirmarSenha
 
-// 2. O botão utiliza o estado de habilitação
+                // 2. O botão utiliza o estado de habilitação
                 Button(
                     onClick = {
                         // O código aqui fica limpo, pois só executa se o botão estiver enabled

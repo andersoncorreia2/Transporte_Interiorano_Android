@@ -180,6 +180,9 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
                 Text("⏰ Partida: ${carona.horario}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text("👥 Vagas Livres: $vagasRestantes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (vagasRestantes <= 0) VermelhoErro else VerdeBotao)
 
+                // 🟢 ADICIONADO: Exibe o valor total da corrida no cartão do passageiro
+                Text("💰 Valor Total: R$ ${carona.valor_corrida}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
+
                 if (meuPedido != null && status.contains("pendente")) {
                     var segundosRestantes by remember { mutableStateOf(0) }
 

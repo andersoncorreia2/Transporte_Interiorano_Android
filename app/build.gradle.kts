@@ -7,33 +7,47 @@ plugins {
 }
 
 android {
-    namespace = "com.example.transporte_interiorano.dev"
-    compileSdk = 36 // Ajustei a sintaxe de versão aqui para a forma padrão do Android
+    namespace = "com.example.transporte_interiorano"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.transporte_interiorano.dev"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 🟢 LEITURA SEGURA
+        // 🟢 LEITURA SEGURA DO MAPBOX
         val secretsFile = rootProject.file("secrets.properties")
         if (secretsFile.exists()) {
             val properties = Properties()
             properties.load(secretsFile.reader())
 
-            // Alterado para corresponder exatamente ao que está no seu secrets.properties
             val tokenReal = properties.getProperty("MAPBOX_API_TOKEN")
+                ?: properties.getProperty("MAPBOX_TOKEN")
 
             if (tokenReal != null && tokenReal.isNotEmpty()) {
                 buildConfigField("String", "MAPBOX_TOKEN", "\"$tokenReal\"")
             } else {
-                throw GradleException("ERRO: A chave 'MAPBOX_API_TOKEN' não existe no arquivo.")
+                throw GradleException("ERRO: A chave 'MAPBOX_API_TOKEN' ou 'MAPBOX_TOKEN' não foi encontrada no secrets.properties.")
             }
         } else {
             throw GradleException("ERRO: Arquivo secrets.properties não encontrado na raiz.")
+        }
+    }
+
+    // 🟢 ATIVAÇÃO DOS PRODUCT FLAVORS
+    flavorDimensions += "modo"
+
+    productFlavors {
+        create("dev") {
+            dimension = "modo"
+            applicationIdSuffix = ".dev"
+            resValue("string", "app_name", "App Dev")
+        }
+        create("prod") {
+            dimension = "modo"
+            resValue("string", "app_name", "Transporte Interiorano")
         }
     }
 
@@ -53,7 +67,8 @@ android {
     }
     buildFeatures {
         compose = true
-        buildConfig = true // 🟢 DEPOIS: Ativando a geração do BuildConfig
+        buildConfig = true
+        resValues = true
     }
 }
 
@@ -74,9 +89,7 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    // Importa o Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
-    // Ferramenta de Notificações (Mensagens)
     implementation("com.google.firebase:firebase-messaging")
     implementation("org.osmdroid:osmdroid-android:6.1.18")
 }

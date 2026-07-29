@@ -11,8 +11,14 @@ import kotlin.concurrent.thread
 object PagamentoEmergenteService {
     private const val BASE_URL = BancoDeDados.BASE_URL
 
-    // 🟢 PASSAGEIRO: Verifica se tem corridas anteriores não pagas
+    // 🟢 PASSAGEIRO: Verifica se tem corridas anteriores não pagas (Com trava anti-401)
     fun verificarDebitoPassageiro(tokenSessao: String, aoConcluir: (Boolean, String, JSONObject?) -> Unit) {
+        // 🛡️ TRAVA DE SEGURANÇA: Se o token estiver vazio, nem gasta rede gerando erro 401 no servidor
+        if (tokenSessao.isEmpty()) {
+            aoConcluir(false, "Token ausente", null)
+            return
+        }
+
         thread {
             try {
                 val url = URL("$BASE_URL/pagamentos/emergente/verificar_debito")
@@ -144,6 +150,43 @@ object PagamentoEmergenteService {
                 }
             } catch (e: Exception) {
                 Handler(Looper.getMainLooper()).post { aoConcluir(false, "Erro de rede.") }
+            }
+        }
+    }
+
+    // 🟢 PASSAGEIRO/MOTORISTA: Atualiza a modalidade ativa no backend (Programada / Emergencial)
+    fun alterarModalidadeUsuario(modalidade: String, tokenSessao: String, aoConcluir: (Boolean) -> Unit) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/usuarios/alterar_modalidade")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.connectTimeout = 5000
+                conexao.readTimeout = 5000
+                conexao.doOutput = true
+
+                val jsonPayload = JSONObject().apply {
+                    put("modalidade", modalidade)
+                }
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(jsonPayload.toString())
+                escritor.flush()
+                escritor.close()
+
+                val codigoResposta = conexao.responseCode
+                val sucesso = (codigoResposta == 200 || codigoResposta == 201)
+
+                Handler(Looper.getMainLooper()).post {
+                    aoConcluir(sucesso)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post {
+                    aoConcluir(false)
+                }
             }
         }
     }

@@ -11,8 +11,12 @@ import kotlin.concurrent.thread
 object PagamentoProgramadoService {
     private const val BASE_URL = BancoDeDados.BASE_URL
 
-    // 🟢 PASSAGEIRO: Solicita o código PIX copia e cola para reservar a vaga
-    fun gerarPixTaxaReserva(caronaId: Int, tokenSessao: String, aoConcluir: (Boolean, String, String?) -> Unit) {
+    // 🟢 PASSAGEIRO: Solicita o Pix real de R$ 5,00 (Taxa de Reserva) com ID da solicitação
+    fun gerarPixTaxaReserva(
+        caronaId: Int,
+        tokenSessao: String,
+        aoConcluir: (Boolean, String, String?, String?, Int) -> Unit
+    ) {
         thread {
             try {
                 val url = URL("$BASE_URL/pagamentos/programado/gerar_taxa")
@@ -26,17 +30,36 @@ object PagamentoProgramadoService {
                 val escritor = OutputStreamWriter(conexao.outputStream)
                 escritor.write(json.toString())
                 escritor.flush()
+                escritor.close()
 
                 if (conexao.responseCode == 200) {
                     val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
                     val resJson = JSONObject(resposta)
-                    val codigoPix = resJson.optString("codigo_pix_copia_cola")
-                    Handler(Looper.getMainLooper()).post { aoConcluir(true, "Pix gerado com sucesso", codigoPix) }
+                    val pixCopiaCola = resJson.optString("pix_copia_cola", "")
+                    val qrCodeBase64 = resJson.optString("qr_code_base64", "")
+                    val solicitacaoId = resJson.optInt("solicitacao_id", 0)
+
+                    Handler(Looper.getMainLooper()).post {
+                        aoConcluir(true, "Pix de reserva gerado com sucesso!", pixCopiaCola, qrCodeBase64, solicitacaoId)
+                    }
                 } else {
-                    Handler(Looper.getMainLooper()).post { aoConcluir(false, "Vaga esgotada ou erro.", null) }
+                    val textoErro = conexao.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                    var msgErro = "Falha ao gerar taxa de reserva."
+                    try {
+                        if (textoErro.isNotEmpty()) {
+                            msgErro = JSONObject(textoErro).optString("erro", msgErro)
+                        }
+                    } catch (e: Exception) {}
+
+                    Handler(Looper.getMainLooper()).post {
+                        aoConcluir(false, msgErro, null, null, 0)
+                    }
                 }
             } catch (e: Exception) {
-                Handler(Looper.getMainLooper()).post { aoConcluir(false, "Falha de rede.", null) }
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post {
+                    aoConcluir(false, "Falha de rede ao gerar Pix: ${e.message}", null, null, 0)
+                }
             }
         }
     }
@@ -57,6 +80,90 @@ object PagamentoProgramadoService {
                 }
             } catch (e: Exception) {
                 Handler(Looper.getMainLooper()).post { aoConcluir(true, "Erro ao verificar acesso.") }
+            }
+        }
+    }
+
+    // 🟢 PASSAGEIRO: Verifica se o Pix da taxa de reserva de R$ 5,00 foi pago
+    fun verificarPagamentoTaxa(
+        solicitacaoId: Int,
+        tokenSessao: String,
+        aoConcluir: (Boolean) -> Unit
+    ) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/pagamentos/programado/verificar_pagamento_taxa/$solicitacaoId")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "GET"
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.connectTimeout = 4000
+
+                if (conexao.responseCode == 200) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(resposta)
+                    val pago = json.optBoolean("pago", false)
+                    Handler(Looper.getMainLooper()).post { aoConcluir(pago) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+            }
+        }
+    }
+
+    // 🟢 PASSAGEIRO: Gera o link de pagamento integral (Pix ou Cartão)
+    fun gerarCheckoutValorTotal(
+        caronaId: Int,
+        valorTotal: Double,
+        tokenSessao: String,
+        aoConcluir: (Boolean, String, String?) -> Unit
+    ) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/pagamentos/programado/gerar_checkout")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.doOutput = true
+
+                val json = JSONObject().apply {
+                    put("carona_id", caronaId)
+                    put("valor_total", valorTotal)
+                }
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                if (conexao.responseCode == 200 || conexao.responseCode == 201) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val resJson = JSONObject(resposta)
+                    val initPoint = resJson.optString("init_point", "")
+
+                    Handler(Looper.getMainLooper()).post {
+                        aoConcluir(true, "Checkout gerado com sucesso!", initPoint)
+                    }
+                } else {
+                    val textoErro = conexao.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                    var msgErro = "Falha ao gerar checkout de pagamento."
+                    try {
+                        if (textoErro.isNotEmpty()) {
+                            msgErro = JSONObject(textoErro).optString("erro", msgErro)
+                        }
+                    } catch (e: Exception) {}
+
+                    Handler(Looper.getMainLooper()).post {
+                        aoConcluir(false, msgErro, null)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Handler(Looper.getMainLooper()).post {
+                    aoConcluir(false, "Falha de rede ao gerar checkout: ${e.message}", null)
+                }
             }
         }
     }

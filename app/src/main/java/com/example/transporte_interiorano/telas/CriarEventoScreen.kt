@@ -27,9 +27,10 @@ import com.example.transporte_interiorano.ui.theme.*
 
 @Composable
 fun CriarEventoScreen(
-    aoPublicarEvento: (String, String, String, String, String, String, String, String) -> Unit,
+    aoPublicarEvento: (String, String, String, String, String, String, String, String, String, String) -> Unit,
     aoClicarSair: () -> Unit,
-    cpfLogado: String
+    cpfLogado: String,
+    nomeLogado: String
 ) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
@@ -41,6 +42,7 @@ fun CriarEventoScreen(
     var destino by remember { mutableStateOf("") }
     var horario by remember { mutableStateOf("") }
     var vagas by remember { mutableStateOf("") }
+    var valorCorrida by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -152,12 +154,20 @@ fun CriarEventoScreen(
             OutlinedTextField(
                 value = vagas,
                 onValueChange = { novoValor ->
-                    val apenasNumeros = novoValor.filter { it.isDigit() }
-                    vagas = apenasNumeros
+                    vagas = novoValor.filter { it.isDigit() }
                 },
                 label = { Text("Vagas") },
                 modifier = Modifier.weight(1f),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+
+            // 🟢 CAMPO: Valor Total da Corrida definido pelo motorista
+            OutlinedTextField(
+                value = valorCorrida,
+                onValueChange = { valorCorrida = it },
+                label = { Text("Valor Total (R$)") },
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
         }
 
@@ -174,7 +184,9 @@ fun CriarEventoScreen(
                     destino,
                     horario,
                     vagas,
-                    cpfLogado
+                    valorCorrida,
+                    nomeLogado,  // 🟢 9º Parâmetro (Nome)
+                    cpfLogado    // 🟢 10º Parâmetro (CPF)
                 )
                 // 🟢 ADICIONADO: Força o gatilho de sincronização imediata no ato da publicação
                 BancoDeDados.buscarCaronasDoServidor()

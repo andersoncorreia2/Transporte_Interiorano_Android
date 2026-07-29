@@ -41,6 +41,7 @@ fun EscolhaModalidadeScreen(
     onQuitarDebito: () -> Unit
 ) {
     val contexto = LocalContext.current
+    val escopoCorrotina = rememberCoroutineScope()
 
     // ESTADOS DO PIX DE DESBLOQUEIO DE R$ 0,01
     var carregandoPix by remember { mutableStateOf(false) }
@@ -271,7 +272,11 @@ fun EscolhaModalidadeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(150.dp)
-                            .clickable { onModalidadeSelecionada("Programada") },
+                            .clickable {
+                                PagamentoEmergenteService.alterarModalidadeUsuario("Programada", BancoDeDados.tokenSessao) { _ ->
+                                    onModalidadeSelecionada("Programada")
+                                }
+                            },
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = AzulPrincipal)
                     ) {
@@ -305,7 +310,11 @@ fun EscolhaModalidadeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(150.dp)
-                            .clickable { onModalidadeSelecionada("Emergencial") },
+                            .clickable {
+                                PagamentoEmergenteService.alterarModalidadeUsuario("Emergencial", BancoDeDados.tokenSessao) { _ ->
+                                    onModalidadeSelecionada("Emergencial")
+                                }
+                            },
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF2E7D32))
                     ) {
