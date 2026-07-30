@@ -9,6 +9,7 @@ import java.net.URL
 import kotlin.concurrent.thread
 import android.os.Handler
 import android.os.Looper
+import com.example.transporte_interiorano.BuildConfig
 
 data class Carona(
     val id: Int = 0,
@@ -53,7 +54,7 @@ data class Pedido(
 
 object BancoDeDados {
     // 🟢 O link agora muda sozinho conforme o botão mágico escolhido!
-    val BASE_URL = Config.BASE_URL
+    val BASE_URL = BuildConfig.BASE_URL
 
     var caronas = mutableStateListOf<Carona>()
 

@@ -10,6 +10,15 @@ android {
     namespace = "com.example.transporte_interiorano"
     compileSdk = 36
 
+    // 🟢 Lê o token do secrets.properties para usar nos flavors
+    val secretsFile = rootProject.file("secrets.properties")
+    var mapboxTokenVal = ""
+    if (secretsFile.exists()) {
+        val properties = Properties()
+        properties.load(secretsFile.reader())
+        mapboxTokenVal = properties.getProperty("MAPBOX_API_TOKEN") ?: properties.getProperty("MAPBOX_TOKEN") ?: ""
+    }
+
     defaultConfig {
         minSdk = 24
         targetSdk = 36
@@ -17,26 +26,15 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 🟢 LEITURA SEGURA DO MAPBOX
-        val secretsFile = rootProject.file("secrets.properties")
-        if (secretsFile.exists()) {
-            val properties = Properties()
-            properties.load(secretsFile.reader())
-
-            val tokenReal = properties.getProperty("MAPBOX_API_TOKEN")
-                ?: properties.getProperty("MAPBOX_TOKEN")
-
-            if (tokenReal != null && tokenReal.isNotEmpty()) {
-                buildConfigField("String", "MAPBOX_TOKEN", "\"$tokenReal\"")
-            } else {
-                throw GradleException("ERRO: A chave 'MAPBOX_API_TOKEN' ou 'MAPBOX_TOKEN' não foi encontrada no secrets.properties.")
-            }
-        } else {
-            throw GradleException("ERRO: Arquivo secrets.properties não encontrado na raiz.")
-        }
+        // Injeta o token gerado pelo Gradle no BuildConfig de forma segura
+        buildConfigField("String", "MAPBOX_TOKEN", "\"$mapboxTokenVal\"")
     }
 
-    // 🟢 ATIVAÇÃO DOS PRODUCT FLAVORS
+    buildFeatures {
+        compose = true
+        buildConfig = true // 👈 Obrigatório para gerar a classe BuildConfig
+    }
+
     flavorDimensions += "modo"
 
     productFlavors {
@@ -44,12 +42,18 @@ android {
             dimension = "modo"
             applicationIdSuffix = ".dev"
             resValue("string", "app_name", "App Dev")
+            buildConfigField("String", "BASE_URL", "\"https://obnoxious-audience-finite.ngrok-free.dev\"")
+            buildConfigField("String", "MAPBOX_TOKEN", "\"$mapboxTokenVal\"")
         }
         create("prod") {
             dimension = "modo"
             resValue("string", "app_name", "Transporte Interiorano")
+            buildConfigField("String", "BASE_URL", "\"https://transporte-interiorano-backend.onrender.com\"")
+            buildConfigField("String", "MAPBOX_TOKEN", "\"$mapboxTokenVal\"")
         }
     }
+
+    // ... resto do seu build.gradle.kts (buildTypes, buildFeatures, etc)
 
     buildTypes {
         release {

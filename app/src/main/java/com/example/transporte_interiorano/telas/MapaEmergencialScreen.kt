@@ -708,6 +708,7 @@ fun MapaEmergencialScreen(
                     // 1. Identificação obrigatória para o Mapbox
                     org.osmdroid.config.Configuration.getInstance().userAgentValue = "TransporteInterioranoApp"
 
+                    // 🟢 DEFINIÇÃO DA VARIÁVEL TOKEN QUE ESTAVA FALTANDO:
                     val token = BuildConfig.MAPBOX_TOKEN
 
                     // Log para ver o token NO MOMENTO DA CRIAÇÃO
@@ -722,7 +723,7 @@ fun MapaEmergencialScreen(
                             val x = MapTileIndex.getX(pMapTileIndex)
                             val y = MapTileIndex.getY(pMapTileIndex)
 
-                            // Monta a URL
+                            // Monta a URL usando a variável token declarada acima
                             val url = "${baseUrl[0]}$z/$x/$y?access_token=$token"
                             return url
                         }
@@ -732,7 +733,6 @@ fun MapaEmergencialScreen(
                         setTileSource(mapboxTileSource)
                         setMultiTouchControls(true)
                         controller.setZoom(16.5)
-                        // Força a limpeza de cache para garantir que não haja "lixo" antigo
                         tileProvider.clearTileCache()
                         mapaRef = this
                     }
