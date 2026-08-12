@@ -32,7 +32,8 @@ object PagamentoProgramadoService {
                 escritor.flush()
                 escritor.close()
 
-                if (conexao.responseCode == 200) {
+                // Permite tanto o código 200 (OK) quanto o 201 (Criado)
+                if (conexao.responseCode == 200 || conexao.responseCode == 201) {
                     val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
                     val resJson = JSONObject(resposta)
                     val pixCopiaCola = resJson.optString("pix_copia_cola", "")
@@ -117,7 +118,7 @@ object PagamentoProgramadoService {
         caronaId: Int,
         valorTotal: Double,
         tokenSessao: String,
-        aoConcluir: (Boolean, String, String?) -> Unit
+        aoConcluir: (Boolean, String, String?, Int) -> Unit // 🟢 Adicionado o retorno do ID (Int)
     ) {
         thread {
             try {
@@ -141,10 +142,12 @@ object PagamentoProgramadoService {
                 if (conexao.responseCode == 200 || conexao.responseCode == 201) {
                     val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
                     val resJson = JSONObject(resposta)
-                    val initPoint = resJson.optString("init_point", "")
+                    // 🟢 MUDANÇA AQUI: Lê a string do Pix Copia e Cola que o servidor agora envia
+                    val pixCopiaCola = resJson.optString("pix_copia_cola", "")
+                    val solicitacaoId = resJson.optInt("solicitacao_id", 0) // 🟢 Captura o ID
 
                     Handler(Looper.getMainLooper()).post {
-                        aoConcluir(true, "Checkout gerado com sucesso!", initPoint)
+                        aoConcluir(true, "Pix gerado com sucesso!", pixCopiaCola, solicitacaoId) // 🟢 Envia o ID para a tela
                     }
                 } else {
                     val textoErro = conexao.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
@@ -156,14 +159,109 @@ object PagamentoProgramadoService {
                     } catch (e: Exception) {}
 
                     Handler(Looper.getMainLooper()).post {
-                        aoConcluir(false, msgErro, null)
+                        aoConcluir(false, msgErro, null, 0) // 🟢 CORREÇÃO: Adicionado o ', 0' no final
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 Handler(Looper.getMainLooper()).post {
-                    aoConcluir(false, "Falha de rede ao gerar checkout: ${e.message}", null)
+                    aoConcluir(false, "Falha de rede ao gerar checkout: ${e.message}", null, 0) // 🟢 CORREÇÃO: Adicionado o ', 0' no final
                 }
+            }
+        }
+    }
+
+    // 🟢 NOVA FUNÇÃO: Verifica o pagamento integral para disparar a notificação
+    fun verificarPagamentoIntegral(
+        solicitacaoId: Int,
+        tokenSessao: String,
+        aoConcluir: (Boolean) -> Unit
+    ) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/pagamentos/programado/verificar_pagamento_integral/$solicitacaoId")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "GET"
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.connectTimeout = 4000
+
+                if (conexao.responseCode == 200) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(resposta)
+                    val pago = json.optBoolean("pago", false)
+                    Handler(Looper.getMainLooper()).post { aoConcluir(pago) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+            }
+        }
+    }
+
+    // 🟢 GERA O PIX DO SALDO RESTANTE
+    fun gerarPixSaldoRestante(
+        caronaId: Int,
+        solicitacaoId: Int,
+        valorSaldo: Double,
+        tokenSessao: String,
+        aoConcluir: (Boolean, String, String?) -> Unit
+    ) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/pagamentos/programado/gerar_saldo")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "POST"
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+                conexao.doOutput = true
+
+                val json = JSONObject().apply {
+                    put("carona_id", caronaId)
+                    put("solicitacao_id", solicitacaoId)
+                    put("valor_saldo", valorSaldo)
+                }
+
+                val escritor = OutputStreamWriter(conexao.outputStream)
+                escritor.write(json.toString())
+                escritor.flush()
+                escritor.close()
+
+                if (conexao.responseCode == 200 || conexao.responseCode == 201) {
+                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                    val resJson = JSONObject(resposta)
+                    val pixCopiaCola = resJson.optString("pix_copia_cola", "")
+                    Handler(Looper.getMainLooper()).post { aoConcluir(true, "Pix gerado!", pixCopiaCola) }
+                } else {
+                    val textoErro = conexao.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                    var msgErro = "Falha ao gerar saldo."
+                    try { if (textoErro.isNotEmpty()) msgErro = JSONObject(textoErro).optString("erro", msgErro) } catch (e: Exception) {}
+                    Handler(Looper.getMainLooper()).post { aoConcluir(false, msgErro, null) }
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post { aoConcluir(false, "Falha de rede.", null) }
+            }
+        }
+    }
+
+    // 🟢 VERIFICA O SALDO E CONFIRMA A VAGA
+    fun verificarPagamentoSaldo(solicitacaoId: Int, tokenSessao: String, aoConcluir: (Boolean) -> Unit) {
+        thread {
+            try {
+                val url = URL("$BASE_URL/pagamentos/programado/verificar_pagamento_saldo/$solicitacaoId")
+                val conexao = url.openConnection() as HttpURLConnection
+                conexao.requestMethod = "GET"
+                conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
+
+                if (conexao.responseCode == 200) {
+                    val json = JSONObject(conexao.inputStream.bufferedReader().use { it.readText() })
+                    val pago = json.optBoolean("pago", false)
+                    Handler(Looper.getMainLooper()).post { aoConcluir(pago) }
+                } else {
+                    Handler(Looper.getMainLooper()).post { aoConcluir(false) }
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post { aoConcluir(false) }
             }
         }
     }

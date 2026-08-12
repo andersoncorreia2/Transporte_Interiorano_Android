@@ -7,7 +7,7 @@ import com.google.firebase.messaging.RemoteMessage
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
+//import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -40,7 +40,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // 🟢 CORREÇÃO 1: Mudamos o ID do canal! O Android vai ser forçado a criar um canal novo,
         // esquecendo o antigo que estava "silenciado" e aplicando a força máxima agora.
         val channelId = "canal_caronas_urgente_v2"
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(

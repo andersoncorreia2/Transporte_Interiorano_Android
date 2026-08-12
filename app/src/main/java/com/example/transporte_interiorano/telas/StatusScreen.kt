@@ -78,7 +78,7 @@ fun MinhasSolicitacoesScreen(
         .sortedByDescending { carona ->
             BancoDeDados.todosOsPedidos.count { pedido ->
                 pedido.caronaId == carona.id &&
-                        (pedido.status.lowercase().contains("pendente") || pedido.status.lowercase().contains("aceito"))
+                        (pedido.status.lowercase().contains("pendente") || pedido.status.lowercase().contains("aceito") || pedido.status.lowercase().contains("taxa paga")) // 🟢 CORREÇÃO
             }
         }
 
@@ -159,7 +159,7 @@ fun CartaoEventoMotorista(
     val totalVagas = carona.vagas.toIntOrNull() ?: 4
     val qtdOcupadas = pedidosDaCarona.count {
         val status = it.status.lowercase()
-        status.contains("aceito") || status.contains("pendente")
+        status.contains("aceito") || status.contains("pendente") || status.contains("taxa paga") // 🟢 CORREÇÃO
     }
     val vagasRestantes = totalVagas - qtdOcupadas
 
@@ -297,15 +297,17 @@ fun LinhaPassageiro(pedido: Pedido, caronaMotorista: String) {
                 }
             } else {
                 val ehAceito = statusLimpo.contains("aceito")
+                val ehTaxaPaga = statusLimpo.contains("taxa paga") // 🟢 LÊ A TAXA DO MERCADO PAGO
                 val ehFinalizado = statusLimpo.contains("finalizada")
 
                 val textoStatus = when {
-                    ehAceito -> "Aceito ✅"
+                    ehAceito -> "Aceito Integral ✅"
+                    ehTaxaPaga -> "Reserva Paga (Falta Saldo) ⏳"
                     ehFinalizado -> "Finalizado 🏁"
                     else -> "Recusado ❌"
                 }
                 val corStatus = when {
-                    ehAceito -> VerdeBotao
+                    ehAceito || ehTaxaPaga -> VerdeBotao // 🟢 Fica verde se a taxa foi paga
                     ehFinalizado -> Color.Blue
                     else -> VermelhoErro
                 }

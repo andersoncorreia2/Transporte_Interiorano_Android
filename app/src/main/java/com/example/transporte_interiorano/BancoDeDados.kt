@@ -9,7 +9,7 @@ import java.net.URL
 import kotlin.concurrent.thread
 import android.os.Handler
 import android.os.Looper
-import com.example.transporte_interiorano.BuildConfig
+//import com.example.transporte_interiorano.BuildConfig
 
 data class Carona(
     val id: Int = 0,
@@ -53,8 +53,17 @@ data class Pedido(
 )
 
 object BancoDeDados {
+    // 🟢 CENTRALIZADO: Link do túnel ngrok gerado no seu VS Code para o ambiente de desenvolvimento local
+    //const val BASE_URL = "https://obnoxious-audience-finite.ngrok-free.dev"
+    // Mude para o IP real da sua ancoragem atual:
+    //private const val BASE_URL = "http://10.233.20.194:5000"
+    //private const val BASE_URL = "http://10.127.212.194:5000"
+    //private const val BASE_URL = "http://192.168.1.66:5000"
+    //private const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
+    const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
+
     // 🟢 O link agora muda sozinho conforme o botão mágico escolhido!
-    val BASE_URL = BuildConfig.BASE_URL
+    //val BASE_URL = BuildConfig.BASE_URL
 
     var caronas = mutableStateListOf<Carona>()
 

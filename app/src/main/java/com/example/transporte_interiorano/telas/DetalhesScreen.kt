@@ -36,14 +36,18 @@ fun DetalhesScreen(
     var corridas by remember { mutableStateOf(corridasIniciais) }
     var passageiros by remember { mutableStateOf(passageirosIniciais) }
 
-    // 🟢 NOVOS ESTADOS PARA A REGRA DE 72H E TAXA DE R$ 5,00
     var mostrarDialogoEscolhaReserva by remember { mutableStateOf(false) }
     var permiteTaxaReserva by remember { mutableStateOf(false) }
     var valorTotalViagem by remember { mutableStateOf(0.0) }
     var carregandoRegra by remember { mutableStateOf(false) }
-    // 🟢 ESTADOS PARA EXIBIR O PIX NA TELA
+
     var mostrarDialogoPix by remember { mutableStateOf(false) }
     var codigoPixCopiaCola by remember { mutableStateOf("") }
+
+    // 🟢 CORREÇÃO CRÍTICA: Variáveis "lembradas" globalmente usando o 'rememberSaveable' para não sumirem da memória na re-renderização
+    var solicitacaoIdParaVerificar by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(-1) }
+    var tipoPagamentoPix by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var carregandoVerificacaoPix by remember { mutableStateOf(false) }
 
     LaunchedEffect(caronaInfo?.motorista_cpf) {
         if (caronaInfo != null && caronaInfo.motorista_cpf.isNotEmpty()) {
@@ -76,37 +80,21 @@ fun DetalhesScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         if (caronaInfo != null) {
-            val pedidosDaCarona =
-                BancoDeDados.todosOsPedidos.filter { it.caronaId == caronaInfo.id }
-
-            // 🆕 LÓGICA DE STATUS: Busca o pedido específico deste passageiro
-            //val meuPedido = pedidosDaCarona.find {
-                //it.passageiro.trim().lowercase() == nomePassageiroLogado.trim().lowercase()
-            //}
+            val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == caronaInfo.id }
 
             val totalVagas = caronaInfo.vagas.toIntOrNull() ?: 0
             val qtdOcupadas = pedidosDaCarona.count {
                 val status = it.status.lowercase()
-                // Só conta vaga ocupada se for "aceito" ou "pendente" (ainda no prazo)
                 status.contains("aceito") || status.contains("pendente")
             }
-            //val meuPedido = pedidosDaCarona.find {
-                //it.passageiro.trim().lowercase() == nomePassageiroLogado.trim().lowercase() &&
-                        //(it.status.lowercase() == "pendente" || it.status.lowercase() == "aceito")
-            //}
             val vagasRestantes = totalVagas - qtdOcupadas
 
-            // Campos Origem/Destino/Horário
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.LocationOn, contentDescription = null, tint = AzulPrincipal)
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text("Origem", fontSize = 12.sp, color = Color.Gray)
-                    Text(
-                        "${caronaInfo.cidade_origem} - ${caronaInfo.endereco_origem}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("${caronaInfo.cidade_origem} - ${caronaInfo.endereco_origem}", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -116,11 +104,7 @@ fun DetalhesScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text("Destino", fontSize = 12.sp, color = Color.Gray)
-                    Text(
-                        "${caronaInfo.cidade_destino} - ${caronaInfo.endereco_destino}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("${caronaInfo.cidade_destino} - ${caronaInfo.endereco_destino}", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -151,122 +135,130 @@ fun DetalhesScreen(
                 Column {
                     Text("Motorista", fontSize = 12.sp, color = Color.Gray)
                     Text(caronaInfo.motorista, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-
-                    // Aqui os valores são exibidos exatamente como solicitado
                     Text("Corridas realizadas: $corridas", fontSize = 12.sp, color = Color.DarkGray)
-                    Text(
-                        "Passageiros conduzidos: $passageiros",
-                        fontSize = 12.sp,
-                        color = Color.DarkGray
-                    )
+                    Text("Passageiros conduzidos: $passageiros", fontSize = 12.sp, color = Color.DarkGray)
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Seção Valor
+        // 🟢 IDENTIFICA SE A CORRIDA É GRATUITA OU PAGA
+        val valorDB = caronaInfo?.valor_corrida ?: "0.00"
+        val isGratuito = valorDB == "0.00" || valorDB == "0" || valorDB == "0.0" || valorDB.isBlank()
+
+        val textoValor = if (isGratuito) "Gratuito" else "R$ $valorDB"
+        val corDoValor = if (isGratuito) VerdeBotao else AzulPrincipal
+
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "$",
-                fontSize = 24.sp,
-                color = Color.Gray,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 4.dp)
-            )
+            Text("$", fontSize = 24.sp, color = Color.Gray, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
             Spacer(modifier = Modifier.width(16.dp))
             Column {
                 Text("Valor", fontSize = 12.sp, color = Color.Gray)
-                Text("Gratuito", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdeBotao)
+                Text(textoValor, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = corDoValor)
             }
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // 1. Defina o pedido do passageiro
         val pedidosDaCarona = BancoDeDados.todosOsPedidos.filter { it.caronaId == caronaInfo?.id }
         val meuPedido = pedidosDaCarona
             .filter { it.passageiro.trim().lowercase() == nomePassageiroLogado.trim().lowercase() }
             .sortedByDescending { it.idReal }
             .firstOrNull { it.status.lowercase() != "finalizado" }
 
-        // 🕵️ RASTREADOR DE HISTÓRICO: Verifica se o último registro dela para essa viagem foi marcado como Expirado
         val foiExpiradoAnteriormente = pedidosDaCarona.any {
             it.passageiro.trim().lowercase() == nomePassageiroLogado.trim().lowercase() &&
                     it.status.equals("Expirado", ignoreCase = true)
         }
 
-        // 2. Lógica para exibir o status (se existir pedido ativo)
         if (meuPedido != null) {
-            Text(
-                "Status atual: ${meuPedido.status}",
-                modifier = Modifier.padding(16.dp).align(Alignment.CenterHorizontally),
-                fontWeight = FontWeight.Bold,
-                color = Color.Gray
-            )
+            Text("Status atual: ${meuPedido.status}", modifier = Modifier.padding(16.dp).align(Alignment.CenterHorizontally), fontWeight = FontWeight.Bold, color = Color.Gray)
         }
 
-        // 3. Botão ÚNICO de Confirmar Vaga com Escolha de Taxa ou Pagamento Total
         val contextoAtual = LocalContext.current
+
+        // 🟢 ADICIONADO: Lógica para calcular o Saldo Restante
+        val ehTaxaPaga = meuPedido?.status?.lowercase()?.contains("taxa paga") == true
+        val valorDaCaronaDb = caronaInfo?.valor_corrida?.toDoubleOrNull() ?: 0.0
+        val saldoAPagar = if (ehTaxaPaga) (valorDaCaronaDb - 5.0) else valorDaCaronaDb
+
         Button(
             onClick = {
                 if (caronaInfo != null) {
-                    carregandoRegra = true
-                    // 🟢 FAZ A REQUISIÇÃO PARA VER SE ESTÁ A MAIS DE 72H DA VIAGEM
-                    kotlin.concurrent.thread {
-                        try {
-                            val url = java.net.URL("${BancoDeDados.BASE_URL}/caronas/verificar_prazo_reserva/${caronaInfo.id}")
-                            val conexao = url.openConnection() as java.net.HttpURLConnection
-                            conexao.requestMethod = "GET"
-                            conexao.setRequestProperty("Authorization", "Bearer ${BancoDeDados.tokenSessao}")
+                    if (ehTaxaPaga && meuPedido != null) {
+                        // 🟢 GERA O PIX DO SALDO DIRETAMENTE
+                        Toast.makeText(contextoAtual, "Gerando Pix do Saldo Restante...", Toast.LENGTH_SHORT).show()
+                        carregandoRegra = true
+                        PagamentoProgramadoService.gerarPixSaldoRestante(
+                            caronaId = caronaInfo.id,
+                            solicitacaoId = meuPedido.idReal,
+                            valorSaldo = saldoAPagar,
+                            tokenSessao = BancoDeDados.tokenSessao
+                        ) { sucesso, mensagem, codigoPix ->
+                            carregandoRegra = false
+                            if (sucesso && !codigoPix.isNullOrEmpty()) {
+                                codigoPixCopiaCola = codigoPix
+                                solicitacaoIdParaVerificar = meuPedido.idReal
+                                tipoPagamentoPix = "SALDO"
+                                mostrarDialogoPix = true
+                            } else {
+                                Toast.makeText(contextoLocal, mensagem, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    } else if (isGratuito) {
+                        BancoDeDados.buscarSolicitacoesDoServidor()
+                        aoConfirmarCarona()
+                    } else {
+                        carregandoRegra = true
+                        kotlin.concurrent.thread {
+                            try {
+                                val url = java.net.URL("${BancoDeDados.BASE_URL}/caronas/verificar_prazo_reserva/${caronaInfo.id}")
+                                val conexao = url.openConnection() as java.net.HttpURLConnection
+                                conexao.requestMethod = "GET"
+                                conexao.setRequestProperty("Authorization", "Bearer ${BancoDeDados.tokenSessao}")
 
-                            if (conexao.responseCode == 200) {
-                                val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
-                                val json = org.json.JSONObject(resposta)
-                                val permite = json.optBoolean("permite_taxa_reserva", false)
-                                val valor = json.optDouble("valor_total", 0.0)
+                                if (conexao.responseCode == 200) {
+                                    val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
+                                    val json = org.json.JSONObject(resposta)
+                                    val permite = json.optBoolean("permite_taxa_reserva", false)
+                                    val valor = json.optDouble("valor_total", 0.0)
 
-                                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                    carregandoRegra = false
-                                    permiteTaxaReserva = permite
-                                    valorTotalViagem = valor
+                                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                        carregandoRegra = false
+                                        permiteTaxaReserva = permite
+                                        valorTotalViagem = valor
 
-                                    if (permite) {
-                                        // Se faltam mais de 72h, abre a escolha (Taxa de R$ 5,00 vs Valor Total)
-                                        mostrarDialogoEscolhaReserva = true
-                                    } else {
-                                        // 🟢 CORRIGIDO: Menos de 72h gera o Pix do Valor Total de imediato e exibe para o passageiro
-                                        Toast.makeText(contextoAtual, "⚠️ Menos de 72h. Gerando Pix do Valor Total (Prazo de 15 min)...", Toast.LENGTH_LONG).show()
-
-                                        if (caronaInfo != null) {
+                                        if (permite) {
+                                            mostrarDialogoEscolhaReserva = true
+                                        } else {
+                                            Toast.makeText(contextoAtual, "⚠️ Menos de 72h. Gerando Pix...", Toast.LENGTH_LONG).show()
                                             PagamentoProgramadoService.gerarCheckoutValorTotal(
-                                                caronaId = caronaInfo.id,
-                                                valorTotal = valorTotalViagem,
-                                                tokenSessao = BancoDeDados.tokenSessao
-                                            ) { sucesso, mensagem, urlCheckout ->
-                                                if (sucesso && !urlCheckout.isNullOrEmpty()) {
-                                                    // Se preferir abrir link de checkout ou se for Pix Copia e Cola, ajustamos para o diálogo:
-                                                    codigoPixCopiaCola = urlCheckout // ou o payload do Pix retornado pelo backend
+                                                caronaId = caronaInfo.id, valorTotal = valorTotalViagem, tokenSessao = BancoDeDados.tokenSessao
+                                            ) { sucesso, mensagem, codigoPix, solicitacaoId -> // 🟢 Recebe o ID
+                                                if (sucesso && !codigoPix.isNullOrEmpty()) {
+                                                    codigoPixCopiaCola = codigoPix
+                                                    solicitacaoIdParaVerificar = solicitacaoId // 🟢 Salva o ID
+                                                    tipoPagamentoPix = "INTEGRAL" // 🟢 Salva o tipo
                                                     mostrarDialogoPix = true
                                                     BancoDeDados.buscarSolicitacoesDoServidor()
                                                 } else {
                                                     Toast.makeText(contextoLocal, mensagem, Toast.LENGTH_LONG).show()
-                                                    aoConfirmarCarona()
                                                 }
                                             }
                                         }
                                     }
+                                } else {
+                                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                        carregandoRegra = false
+                                        Toast.makeText(contextoAtual, "Erro ao verificar. Tente novamente.", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
-                            } else {
+                            } catch (e: Exception) {
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                     carregandoRegra = false
-                                    aoConfirmarCarona() // Fallback seguro
+                                    Toast.makeText(contextoAtual, "Falha de rede.", Toast.LENGTH_SHORT).show()
                                 }
-                            }
-                        } catch (e: Exception) {
-                            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                carregandoRegra = false
-                                aoConfirmarCarona() // Fallback seguro
                             }
                         }
                     }
@@ -278,16 +270,15 @@ fun DetalhesScreen(
             colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao)
         ) {
             Text(
-                text = if (carregandoRegra) "Verificando prazos..." else if (foiExpiradoAnteriormente) "Confirmar Vaga Novamente 🔄" else "Confirmar Vaga",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                text = if (carregandoRegra) "Verificando prazos..."
+                else if (ehTaxaPaga) "Pagar Saldo (R$ ${String.format("%.2f", saldoAPagar)}) 💳"
+                else if (foiExpiradoAnteriormente) "Confirmar Vaga Novamente 🔄"
+                else "Confirmar Vaga",
+                fontSize = 16.sp, fontWeight = FontWeight.Bold
             )
         }
-    } // Fecha a Column
+    }
 
-    // ==========================================
-    // 🟢 DIÁLOGO DE ESCOLHA: TAXA DE RESERVA (R$ 5,00) VS PAGAMENTO INTEGRAL
-    // ==========================================
     if (mostrarDialogoEscolhaReserva) {
         AlertDialog(
             onDismissRequest = { mostrarDialogoEscolhaReserva = false },
@@ -296,26 +287,24 @@ fun DetalhesScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Como faltam mais de 3 dias para a viagem, você pode escolher:", fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("⚡ Opção 1: Pagar Taxa de Reserva de R$ 5,00 agora e garantir sua vaga por 24 horas (o restante será cobrado depois).", fontSize = 12.sp, color = Color.DarkGray)
+                    Text("⚡ Opção 1: Pagar Taxa de Reserva de R$ 5,00 agora e garantir sua vaga por 24 horas (o restante deverá ser pago até antes do término das 24 horas).", fontSize = 12.sp, color = Color.DarkGray)
                     Text("💳 Opção 2: Pagar o Valor Total (R$ ${String.format("%.2f", valorTotalViagem)}) em até 15 minutos para garantir de vez.", fontSize = 12.sp, color = Color.DarkGray)
                 }
             },
             confirmButton = {
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 1. Botão da Taxa de Reserva de R$ 5,00
                     Button(
                         onClick = {
                             mostrarDialogoEscolhaReserva = false
                             if (caronaInfo != null) {
                                 Toast.makeText(contextoLocal, "Gerando Pix da Taxa de Reserva (R$ 5,00)...", Toast.LENGTH_SHORT).show()
-
                                 PagamentoProgramadoService.gerarPixTaxaReserva(
-                                    caronaId = caronaInfo.id,
-                                    tokenSessao = BancoDeDados.tokenSessao
-                                ) { sucesso, mensagem, pixCopiaCola, qrCodeBase64, solicitacaoId ->
+                                    caronaId = caronaInfo.id, tokenSessao = BancoDeDados.tokenSessao
+                                ) { sucesso, mensagem, pixCopiaCola, _, solicitacaoId -> // 🟢 Pega o último parâmetro
                                     if (sucesso && !pixCopiaCola.isNullOrEmpty()) {
-                                        // 🟢 SALVA O CÓDIGO E ABRE O DIÁLOGO DO PIX PARA O USUÁRIO COPIAR
                                         codigoPixCopiaCola = pixCopiaCola
+                                        solicitacaoIdParaVerificar = solicitacaoId // 🟢 Salva o ID
+                                        tipoPagamentoPix = "TAXA" // 🟢 Salva o tipo
                                         mostrarDialogoPix = true
                                         BancoDeDados.buscarSolicitacoesDoServidor()
                                     } else {
@@ -328,24 +317,20 @@ fun DetalhesScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Pagar Taxa de R$ 5,00 (Garante 24h) ⚡") }
 
-                    // 2. Botão do Valor Total (Checkout / Pix ou Cartão)
                     Button(
                         onClick = {
                             mostrarDialogoEscolhaReserva = false
                             if (caronaInfo != null) {
-                                Toast.makeText(contextoLocal, "Gerando link de pagamento total...", Toast.LENGTH_SHORT).show()
-
+                                Toast.makeText(contextoLocal, "Gerando Pix do valor total...", Toast.LENGTH_SHORT).show()
                                 PagamentoProgramadoService.gerarCheckoutValorTotal(
-                                    caronaId = caronaInfo.id,
-                                    valorTotal = valorTotalViagem,
-                                    tokenSessao = BancoDeDados.tokenSessao
-                                ) { sucesso, mensagem, urlCheckout ->
-                                    if (sucesso && !urlCheckout.isNullOrEmpty()) {
-                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(urlCheckout))
-                                        contextoLocal.startActivity(intent)
-
+                                    caronaId = caronaInfo.id, valorTotal = valorTotalViagem, tokenSessao = BancoDeDados.tokenSessao
+                                ) { sucesso, mensagem, codigoPix, solicitacaoId -> // 🟢 Recebe o ID
+                                    if (sucesso && !codigoPix.isNullOrEmpty()) {
+                                        codigoPixCopiaCola = codigoPix
+                                        solicitacaoIdParaVerificar = solicitacaoId // 🟢 Salva o ID
+                                        tipoPagamentoPix = "INTEGRAL" // 🟢 Salva o tipo
+                                        mostrarDialogoPix = true
                                         BancoDeDados.buscarSolicitacoesDoServidor()
-                                        aoConfirmarCarona()
                                     } else {
                                         Toast.makeText(contextoLocal, mensagem, Toast.LENGTH_LONG).show()
                                     }
@@ -355,62 +340,110 @@ fun DetalhesScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Pagar Valor Total (15 min) 💳") }
+
+                    // 🟢 MOVIDO PARA CÁ: O botão Cancelar agora faz parte da mesma coluna e fica alinhado no centro!
+                    TextButton(
+                        onClick = { mostrarDialogoEscolhaReserva = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cancelar", color = Color.Gray, fontWeight = FontWeight.Bold)
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { mostrarDialogoEscolhaReserva = false }) {
-                    Text("Cancelar", color = Color.Gray)
-                }
-            }
+            dismissButton = {} // 🟢 DEIXADO VAZIO: Isso impede que o Android tente espremer botões do lado de fora da coluna
         )
     }
 
-    // ==========================================
-    // 🟢 DIÁLOGO PARA EXIBIR O PIX COPIA E COLA
-    // ==========================================
     if (mostrarDialogoPix) {
         AlertDialog(
             onDismissRequest = {
                 mostrarDialogoPix = false
-                aoConfirmarCarona()
+                aoClicarVoltar() // 🟢 CORREÇÃO CRÍTICA: Volta pra tela principal e NÃO duplica o pedido!
             },
-            title = { Text("Pague o Pix de R$ 5,00 📱", fontWeight = FontWeight.Bold, color = AzulPrincipal) },
+            title = { Text("Pague o Pix 📱", fontWeight = FontWeight.Bold, color = AzulPrincipal) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Copie o código abaixo e pague no aplicativo do seu banco para garantir sua vaga por 24 horas:", fontSize = 14.sp)
+                    Text("Copie o código abaixo e pague no aplicativo do seu banco para garantir sua vaga:", fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(4.dp))
-
-                    // Caixa de texto com o código Copia e Cola
                     OutlinedTextField(
-                        value = codigoPixCopiaCola,
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier.fillMaxWidth().height(120.dp),
-                        label = { Text("Pix Copia e Cola") }
+                        value = codigoPixCopiaCola, onValueChange = {}, readOnly = true,
+                        modifier = Modifier.fillMaxWidth().height(120.dp), label = { Text("Pix Copia e Cola") }
                     )
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        // 🟢 CORREÇÃO: Conversão explícita correta para android.content.ClipboardManager
-                        val clipboard = contextoLocal.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        val clip = android.content.ClipData.newPlainText("Pix Copia e Cola", codigoPixCopiaCola)
-                        clipboard.setPrimaryClip(clip)
-                        Toast.makeText(contextoLocal, "Código Pix copiado!", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Copiar Código Pix 📋") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    mostrarDialogoPix = false
-                    aoConfirmarCarona()
-                }) {
-                    Text("Já paguei / Fechar", color = AzulPrincipal, fontWeight = FontWeight.Bold)
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            val clipboard = contextoLocal.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val clip = android.content.ClipData.newPlainText("Pix Copia e Cola", codigoPixCopiaCola)
+                            clipboard.setPrimaryClip(clip)
+                            Toast.makeText(contextoLocal, "Código Pix copiado!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Copiar Código Pix 📋") }
+
+                    // 🟢 O BOTÃO QUE FALTAVA: Aciona o servidor para verificar a chave PIX e avisar o motorista!
+                    Button(
+                        onClick = {
+                            val solId = solicitacaoIdParaVerificar
+                            if (solId != -1) {
+                                carregandoVerificacaoPix = true
+
+                                if (tipoPagamentoPix == "TAXA") {
+                                    PagamentoProgramadoService.verificarPagamentoTaxa(solId, BancoDeDados.tokenSessao) { pago ->
+                                        carregandoVerificacaoPix = false
+                                        if (pago) {
+                                            Toast.makeText(contextoLocal, "✅ Pagamento confirmado! Vaga garantida por 24h.", Toast.LENGTH_LONG).show()
+                                            mostrarDialogoPix = false
+                                            aoClicarVoltar()
+                                        } else {
+                                            Toast.makeText(contextoLocal, "⏳ Pagamento ainda não identificado.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                } else if (tipoPagamentoPix == "SALDO") {
+                                    // 🟢 LÊ A ROTA DO SALDO
+                                    PagamentoProgramadoService.verificarPagamentoSaldo(solId, BancoDeDados.tokenSessao) { pago ->
+                                        carregandoVerificacaoPix = false
+                                        if (pago) {
+                                            Toast.makeText(contextoLocal, "✅ Saldo quitado! Vaga confirmada 100%.", Toast.LENGTH_LONG).show()
+                                            mostrarDialogoPix = false
+                                            aoClicarVoltar()
+                                        } else {
+                                            Toast.makeText(contextoLocal, "⏳ Pagamento ainda não identificado.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                } else {
+                                    PagamentoProgramadoService.verificarPagamentoIntegral(solId, BancoDeDados.tokenSessao) { pago ->
+                                        carregandoVerificacaoPix = false
+                                        if (pago) {
+                                            Toast.makeText(contextoLocal, "✅ Pagamento Integral confirmado! Vaga garantida 100%.", Toast.LENGTH_LONG).show()
+                                            mostrarDialogoPix = false
+                                            aoClicarVoltar()
+                                        } else {
+                                            Toast.makeText(contextoLocal, "⏳ Pagamento ainda não identificado. Tente novamente em instantes.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = VerdeBotao),
+                        enabled = !carregandoVerificacaoPix,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (carregandoVerificacaoPix) "Verificando..." else "Já Paguei / Verificar ⚡") }
+
+                    Button(
+                        onClick = {
+                            mostrarDialogoPix = false
+                            aoClicarVoltar()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Fechar / Pagar Depois ❌", color = Color.White) }
                 }
-            }
+            },
+            dismissButton = {} // Vazio, pois agora usamos botões grandes em bloco
         )
     }
-} // Fecha a função DetalhesScreen
+}

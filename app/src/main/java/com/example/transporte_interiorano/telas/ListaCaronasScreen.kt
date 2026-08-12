@@ -141,7 +141,7 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
     // Conta quem realmente ocupa vaga (os que não foram recusados ou expirados)
     val qtdOcupadas = pedidosDaCarona.count {
         val st = it.status.lowercase()
-        st.contains("aceito") || st.contains("pendente")
+        st.contains("aceito") || st.contains("pendente") || st.contains("taxa paga") // 🟢 CORREÇÃO: Lê o pagamento do Pix!
     }
     val vagasRestantes = totalVagas - qtdOcupadas
 
@@ -183,49 +183,84 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
                 // 🟢 ADICIONADO: Exibe o valor total da corrida no cartão do passageiro
                 Text("💰 Valor Total: R$ ${carona.valor_corrida}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AzulPrincipal)
 
-                if (meuPedido != null && status.contains("pendente")) {
-                    var segundosRestantes by remember { mutableStateOf(0) }
+                if (meuPedido != null) {
+                    if (status.contains("pendente")) {
+                        var segundosRestantes by remember { mutableStateOf(0) }
 
-                    LaunchedEffect(key1 = meuPedido.idReal) {
-                        try {
-                            val formatoData = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
-                            //formatoData.timeZone = java.util.TimeZone.getTimeZone("UTC")
-
-                            val dataCriacaoBanco = formatoData.parse(meuPedido.dataCriacao)
-
-                            if (dataCriacaoBanco != null) {
-                                // Pega a hora do banco e soma 15 minutos (em milissegundos)
-                                val limiteParaPagar = dataCriacaoBanco.time + (15 * 60 * 1000)
-
-                                while (true) {
-                                    val agora = System.currentTimeMillis()
-                                    val diff = ((limiteParaPagar - agora) / 1000).toInt()
-
-                                    if (diff > 0) {
-                                        segundosRestantes = diff
-                                        kotlinx.coroutines.delay(1000)
-                                    } else {
-                                        segundosRestantes = 0
-                                        break
+                        LaunchedEffect(key1 = meuPedido.idReal) {
+                            try {
+                                val formatoData = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
+                                val dataCriacaoBanco = formatoData.parse(meuPedido.dataCriacao)
+                                if (dataCriacaoBanco != null) {
+                                    val limiteParaPagar = dataCriacaoBanco.time + (15 * 60 * 1000)
+                                    while (true) {
+                                        val agora = System.currentTimeMillis()
+                                        val diff = ((limiteParaPagar - agora) / 1000).toInt()
+                                        if (diff > 0) {
+                                            segundosRestantes = diff
+                                            kotlinx.coroutines.delay(1000)
+                                        } else {
+                                            segundosRestantes = 0
+                                            break
+                                        }
                                     }
                                 }
+                            } catch (e: Exception) {
+                                segundosRestantes = 0
                             }
-                        } catch (e: Exception) {
-                            segundosRestantes = 0
                         }
+
+                        val minutosFormato = segundosRestantes / 60
+                        val segundosFormato = segundosRestantes % 60
+                        val tempoTexto = String.format("%02d:%02d", minutosFormato, segundosFormato)
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (segundosRestantes > 0) "⏱️ Tempo restante para pagar: $tempoTexto" else "⚠️ O tempo de pagamento expirou!",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (segundosRestantes > 120) AzulPrincipal else VermelhoErro
+                        )
+                    } else if (status.contains("taxa paga")) {
+                        // 🟢 NOVO: CONTADOR DE 24 HORAS PARA PAGAR O SALDO RESTANTE
+                        var segundosRestantes24h by remember { mutableStateOf(0) }
+
+                        LaunchedEffect(key1 = meuPedido.idReal) {
+                            try {
+                                val formatoData = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
+                                val dataCriacaoBanco = formatoData.parse(meuPedido.dataCriacao)
+                                if (dataCriacaoBanco != null) {
+                                    val limiteParaPagar = dataCriacaoBanco.time + (24 * 60 * 60 * 1000) // 24 horas
+                                    while (true) {
+                                        val agora = System.currentTimeMillis()
+                                        val diff = ((limiteParaPagar - agora) / 1000).toInt()
+                                        if (diff > 0) {
+                                            segundosRestantes24h = diff
+                                            kotlinx.coroutines.delay(1000)
+                                        } else {
+                                            segundosRestantes24h = 0
+                                            break
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                segundosRestantes24h = 0
+                            }
+                        }
+
+                        val horasFormato = segundosRestantes24h / 3600
+                        val minutosFormato = (segundosRestantes24h % 3600) / 60
+                        val segundosFormato = segundosRestantes24h % 60
+                        val tempoTexto = String.format("%02d:%02d:%02d", horasFormato, minutosFormato, segundosFormato)
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (segundosRestantes24h > 0) "⏳ Prazo para quitar o saldo: $tempoTexto" else "⚠️ O prazo de 24h expirou!",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (segundosRestantes24h > 0) AmareloAviso else VermelhoErro
+                        )
                     }
-
-                    val minutosFormato = segundosRestantes / 60
-                    val segundosFormato = segundosRestantes % 60
-                    val tempoTexto = String.format("%02d:%02d", minutosFormato, segundosFormato)
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = if (segundosRestantes > 0) "⏱️ Tempo restante para pagar: $tempoTexto" else "⚠️ O tempo de pagamento expirou!",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (segundosRestantes > 120) AzulPrincipal else VermelhoErro
-                    )
                 }
             }
 
@@ -239,17 +274,37 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
                 ) {
                     Column {
                         Text("Status:", fontSize = 12.sp, color = Color.Gray)
+
+                        // 🟢 CORREÇÃO: O Kotlin agora entende o status de Taxa Paga e Integral
+                        val textoStatusPassageiro = when {
+                            status.contains("aceito") -> "Viagem Confirmada ✅"
+                            status.contains("taxa paga") -> "Reserva Garantida ⏳"
+                            else -> "Pendente ⏳"
+                        }
+                        val corStatusPassageiro = if (status.contains("aceito") || status.contains("taxa paga")) VerdeBotao else AmareloAviso
+
                         Text(
-                            text = if (status.contains("aceito")) "Aceito ✅" else "Pendente ⏳",
+                            text = textoStatusPassageiro,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (status.contains("aceito")) VerdeBotao else AmareloAviso
+                            color = corStatusPassageiro
                         )
                     }
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    if (status.contains("pendente")) {
+                    if (status.contains("pendente") || status.contains("taxa paga")) {
+                        // 🟢 ADICIONADO: Botão para abrir os detalhes e pagar o saldo!
+                        if (status.contains("taxa paga")) {
+                            Button(
+                                onClick = { aoClicarEmSolicitar(carona) },
+                                colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text("Pagar Saldo", fontSize = 12.sp)
+                            }
+                        }
+
                         OutlinedButton(
                             onClick = {
                                 BancoDeDados.cancelarPedidoPassageiro(meuPedido.idReal)

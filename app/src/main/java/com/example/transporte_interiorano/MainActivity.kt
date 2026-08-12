@@ -32,6 +32,7 @@ import java.util.Date
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import org.json.JSONObject
+//import com.example.transporte_interiorano.dev.BuildConfig
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -517,7 +518,8 @@ class MainActivity : ComponentActivity() {
 
                                             // 2. DESTINO: Usa o token do Mapbox para achar a coordenada (mesmo sistema da sugestão)
                                             val queryCodificada = java.net.URLEncoder.encode(destinoDigitado, "UTF-8")
-                                            val tokenMapbox = com.example.transporte_interiorano.BuildConfig.MAPBOX_TOKEN
+                                            //val tokenMapbox = BuildConfig.MAPBOX_TOKEN
+                                            val tokenMapbox = com.example.transporte_interiorano.dev.BuildConfig.MAPBOX_TOKEN
                                             // 🟢 O Mapbox agora vai priorizar endereços que estejam perto do GPS atual do celular!
                                             val urlDestino = URL("https://api.mapbox.com/geocoding/v5/mapbox.places/$queryCodificada.json?access_token=$tokenMapbox&proximity=$longitudeAtual,$latitudeAtual&country=br&limit=1")
 

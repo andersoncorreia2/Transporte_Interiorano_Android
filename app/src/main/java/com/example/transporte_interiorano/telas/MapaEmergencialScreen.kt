@@ -55,7 +55,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.roundToInt
 import org.osmdroid.util.MapTileIndex
-import com.example.transporte_interiorano.BuildConfig
+//import com.example.transporte_interiorano.BuildConfig
+import com.example.transporte_interiorano.dev.BuildConfig // Importe a classe gerada pelo namespace que você definiu no Gradle
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -705,35 +706,15 @@ fun MapaEmergencialScreen(
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             AndroidView(
                 factory = { ctx ->
-                    // 1. Identificação obrigatória para o Mapbox
-                    org.osmdroid.config.Configuration.getInstance().userAgentValue = "TransporteInterioranoApp"
-
-                    // 🟢 DEFINIÇÃO DA VARIÁVEL TOKEN QUE ESTAVA FALTANDO:
-                    val token = BuildConfig.MAPBOX_TOKEN
-
-                    // Log para ver o token NO MOMENTO DA CRIAÇÃO
-                    android.util.Log.e("DEBUG_MAPA", "Token sendo usado: '$token'")
-
-                    val mapboxTileSource = object : org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase(
-                        "Mapbox", 1, 20, 256, ".png",
-                        arrayOf("https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/")
-                    ) {
-                        override fun getTileURLString(pMapTileIndex: Long): String {
-                            val z = MapTileIndex.getZoom(pMapTileIndex)
-                            val x = MapTileIndex.getX(pMapTileIndex)
-                            val y = MapTileIndex.getY(pMapTileIndex)
-
-                            // Monta a URL usando a variável token declarada acima
-                            val url = "${baseUrl[0]}$z/$x/$y?access_token=$token"
-                            return url
-                        }
-                    }
+                    // 🟢 Identificação obrigatória para os servidores do OpenStreetMap
+                    org.osmdroid.config.Configuration.getInstance().userAgentValue = contexto.packageName
 
                     MapView(ctx).apply {
-                        setTileSource(mapboxTileSource)
+                        // 🟢 MÁGICA AQUI: Define o visual 100% OpenStreetMap (sem tokens)
+                        setTileSource(TileSourceFactory.MAPNIK)
                         setMultiTouchControls(true)
                         controller.setZoom(16.5)
-                        tileProvider.clearTileCache()
+                        // tileProvider.clearTileCache() // (Opcional) Removido para o mapa carregar mais rápido
                         mapaRef = this
                     }
                 },

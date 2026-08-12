@@ -10,50 +10,34 @@ android {
     namespace = "com.example.transporte_interiorano"
     compileSdk = 36
 
-    // 🟢 Lê o token do secrets.properties para usar nos flavors
-    val secretsFile = rootProject.file("secrets.properties")
-    var mapboxTokenVal = ""
-    if (secretsFile.exists()) {
-        val properties = Properties()
-        properties.load(secretsFile.reader())
-        mapboxTokenVal = properties.getProperty("MAPBOX_API_TOKEN") ?: properties.getProperty("MAPBOX_TOKEN") ?: ""
-    }
-
     defaultConfig {
+        applicationId = "com.example.transporte_interiorano"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Injeta o token gerado pelo Gradle no BuildConfig de forma segura
-        buildConfigField("String", "MAPBOX_TOKEN", "\"$mapboxTokenVal\"")
-    }
+        // 🟢 LEITURA SEGURA DO MAPBOX TOKEN
+        val secretsFile = rootProject.file("secrets.properties")
+        if (secretsFile.exists()) {
+            val properties = Properties()
+            properties.load(secretsFile.reader())
 
-    buildFeatures {
-        compose = true
-        buildConfig = true // 👈 Obrigatório para gerar a classe BuildConfig
-    }
+            // Tenta ler qualquer uma das duas variações comuns
+            val tokenReal = properties.getProperty("MAPBOX_API_TOKEN")
+                ?: properties.getProperty("MAPBOX_TOKEN")
 
-    flavorDimensions += "modo"
-
-    productFlavors {
-        create("dev") {
-            dimension = "modo"
-            applicationIdSuffix = ".dev"
-            resValue("string", "app_name", "App Dev")
-            buildConfigField("String", "BASE_URL", "\"https://obnoxious-audience-finite.ngrok-free.dev\"")
-            buildConfigField("String", "MAPBOX_TOKEN", "\"$mapboxTokenVal\"")
-        }
-        create("prod") {
-            dimension = "modo"
-            resValue("string", "app_name", "Transporte Interiorano")
-            buildConfigField("String", "BASE_URL", "\"https://transporte-interiorano-backend.onrender.com\"")
-            buildConfigField("String", "MAPBOX_TOKEN", "\"$mapboxTokenVal\"")
+            if (tokenReal != null && tokenReal.isNotEmpty()) {
+            //if (!tokenReal.isNullOrEmpty()) {
+                buildConfigField("String", "MAPBOX_TOKEN", "\"$tokenReal\"")
+            } else {
+                throw GradleException("ERRO: A chave 'MAPBOX_API_TOKEN' ou 'MAPBOX_TOKEN' não foi encontrada no secrets.properties.")
+            }
+        } else {
+            throw GradleException("ERRO: Arquivo secrets.properties não encontrado na raiz do projeto.")
         }
     }
-
-    // ... resto do seu build.gradle.kts (buildTypes, buildFeatures, etc)
 
     buildTypes {
         release {
@@ -65,14 +49,15 @@ android {
         }
         debug { }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     buildFeatures {
         compose = true
         buildConfig = true
-        resValues = true
     }
 }
 
@@ -86,6 +71,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+
+    // Tests
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -93,7 +80,12 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
     implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.android.gms:play-services-base:18.5.0")
+
+    // Mapas
     implementation("org.osmdroid:osmdroid-android:6.1.18")
 }
