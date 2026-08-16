@@ -141,7 +141,7 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
     // Conta quem realmente ocupa vaga (os que não foram recusados ou expirados)
     val qtdOcupadas = pedidosDaCarona.count {
         val st = it.status.lowercase()
-        st.contains("aceito") || st.contains("pendente") || st.contains("taxa paga") // 🟢 CORREÇÃO: Lê o pagamento do Pix!
+        st.contains("aceito") || st.contains("pendente") || st.contains("taxa paga") || st.contains("carencia") // 🟢 CORREÇÃO: Lê o pagamento do Pix!
     }
     val vagasRestantes = totalVagas - qtdOcupadas
 
@@ -255,10 +255,48 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
 
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (segundosRestantes24h > 0) "⏳ Prazo para quitar o saldo: $tempoTexto" else "⚠️ O prazo de 24h expirou!",
+                            text = if (segundosRestantes24h > 0) "⏳ Prazo para quitar o saldo: $tempoTexto" else "⚠️ Atualizando status...",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (segundosRestantes24h > 0) AmareloAviso else VermelhoErro
+                        )
+                    } else if (status.contains("carencia")) {
+                        // 🟢 NOVO: RELÓGIO DE 15 MINUTOS DA CARÊNCIA
+                        var segundosCarencia by remember { mutableStateOf(0) }
+
+                        LaunchedEffect(key1 = meuPedido.idReal) {
+                            try {
+                                val formatoData = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
+                                val dataCar = formatoData.parse(meuPedido.dataLimitePagamento)
+                                if (dataCar != null) {
+                                    val limiteCarencia = dataCar.time + (15 * 60 * 1000)
+                                    while (true) {
+                                        val agora = System.currentTimeMillis()
+                                        val diff = ((limiteCarencia - agora) / 1000).toInt()
+                                        if (diff > 0) {
+                                            segundosCarencia = diff
+                                            kotlinx.coroutines.delay(1000)
+                                        } else {
+                                            segundosCarencia = 0
+                                            break
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                segundosCarencia = 0
+                            }
+                        }
+
+                        val minutosFormato = segundosCarencia / 60
+                        val segundosFormato = segundosCarencia % 60
+                        val tempoTexto = String.format("%02d:%02d", minutosFormato, segundosFormato)
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (segundosCarencia > 0) "⚠️ CARÊNCIA: Você tem $tempoTexto para pagar o saldo!" else "❌ O tempo final expirou!",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = VermelhoErro
                         )
                     }
                 }
@@ -275,13 +313,18 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
                     Column {
                         Text("Status:", fontSize = 12.sp, color = Color.Gray)
 
-                        // 🟢 CORREÇÃO: O Kotlin agora entende o status de Taxa Paga e Integral
+                        // 🟢 CORREÇÃO: O Kotlin agora entende o status de Carencia
                         val textoStatusPassageiro = when {
                             status.contains("aceito") -> "Viagem Confirmada ✅"
                             status.contains("taxa paga") -> "Reserva Garantida ⏳"
+                            status.contains("carencia") -> "Aviso de Perda ⚠️"
                             else -> "Pendente ⏳"
                         }
-                        val corStatusPassageiro = if (status.contains("aceito") || status.contains("taxa paga")) VerdeBotao else AmareloAviso
+                        val corStatusPassageiro = when {
+                            status.contains("aceito") || status.contains("taxa paga") -> VerdeBotao
+                            status.contains("carencia") -> VermelhoErro
+                            else -> AmareloAviso
+                        }
 
                         Text(
                             text = textoStatusPassageiro,
@@ -293,9 +336,9 @@ fun CartaoCaronaDisponivel(carona: Carona, nomeLogado: String, aoClicarEmSolicit
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    if (status.contains("pendente") || status.contains("taxa paga")) {
-                        // 🟢 ADICIONADO: Botão para abrir os detalhes e pagar o saldo!
-                        if (status.contains("taxa paga")) {
+                    if (status.contains("pendente") || status.contains("taxa paga") || status.contains("carencia")) {
+                        // 🟢 ADICIONADO: O Botão Pagar Saldo também aparece na Carência!
+                        if (status.contains("taxa paga") || status.contains("carencia")) {
                             Button(
                                 onClick = { aoClicarEmSolicitar(carona) },
                                 colors = ButtonDefaults.buttonColors(containerColor = AzulPrincipal),

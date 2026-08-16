@@ -49,7 +49,8 @@ data class Pedido(
     val horario: String = "",
     val dataCriacao: String = "", //Adicionado em 13/07/2026 às 15:03
     val dataFinalizacao: String = "", // 🟢 NOVA INFORMAÇÃO
-    val motoristaNome: String = "" // 🟢 ADICIONADO: Recebe o nome do motorista
+    val motoristaNome: String = "", // 🟢 ADICIONADO: Recebe o nome do motorista
+    val dataLimitePagamento: String = "" // 🟢 NOVO: Para calcular a carência
 )
 
 object BancoDeDados {
@@ -127,10 +128,8 @@ object BancoDeDados {
                             cidade_origem = item.optString("cidade_origem", ""),
                             cidade_destino = item.optString("cidade_destino", ""),
                             horario = item.optString("horario", ""),
-                            dataCriacao = item.optString(
-                                "data_criacao",
-                                ""
-                            ) //Adicionado em 13/07/2026 às 15:03
+                            dataCriacao = item.optString("data_criacao", ""),
+                            dataLimitePagamento = item.optString("data_limite_pagamento", "") // 🟢 NOVO!
                         )
                     )
                 }
@@ -1405,5 +1404,16 @@ object BancoDeDados {
                 }
             }
         }
+    }
+
+    // FUNÇÃO DE SEGURANÇA: Limpa completamente os tokens e variáveis da memória (Logout Forçado)
+    fun fazerLogout() {
+        tokenSessao = ""
+        cpfUsuarioLogado = ""
+        temEventoAtivo = false
+        deadlineCancelamentoEpoch = 0L
+        caronas.clear()
+        corridasEmergentesDisponiveis.clear()
+        todosOsPedidos.clear()
     }
 }

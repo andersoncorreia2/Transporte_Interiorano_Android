@@ -178,8 +178,10 @@ fun DetalhesScreen(
 
         val contextoAtual = LocalContext.current
 
-        // 🟢 ADICIONADO: Lógica para calcular o Saldo Restante
-        val ehTaxaPaga = meuPedido?.status?.lowercase()?.contains("taxa paga") == true
+        // ADICIONADO: Lógica para calcular o Saldo Restante
+        val statusPedidoAtual = meuPedido?.status?.lowercase() ?: ""
+        // Permite pagar o saldo tanto no prazo normal das 24h quanto nos últimos 15 min de Carência!
+        val ehTaxaPaga = statusPedidoAtual.contains("taxa paga") || statusPedidoAtual.contains("carencia")
         val valorDaCaronaDb = caronaInfo?.valor_corrida?.toDoubleOrNull() ?: 0.0
         val saldoAPagar = if (ehTaxaPaga) (valorDaCaronaDb - 5.0) else valorDaCaronaDb
 

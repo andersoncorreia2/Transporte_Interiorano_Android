@@ -55,8 +55,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.roundToInt
 import org.osmdroid.util.MapTileIndex
-//import com.example.transporte_interiorano.BuildConfig
-import com.example.transporte_interiorano.dev.BuildConfig // Importe a classe gerada pelo namespace que você definiu no Gradle
+import com.example.transporte_interiorano.BuildConfig
+//import com.example.transporte_interiorano.dev.BuildConfig // Importe a classe gerada pelo namespace que você definiu no Gradle
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,6 +69,7 @@ fun MapaEmergencialScreen(
     corridaCriadaIdGlobal: Int?,
     corridaAceitaMotoristaGlobalStr: String?,
     tempoCancelamentoGlobal: Int,
+    aoRegistrarCalote: () -> Unit, // 🟢 ADICIONADO: Variável de gatilho
     aoClicarVoltar: () -> Unit,
     aoChamarMotorista: (String, String, String, (Int) -> Unit) -> Unit,
     aoLimparCorridaGlobal: () -> Unit,
@@ -610,7 +611,16 @@ fun MapaEmergencialScreen(
                                 forcarMovimentacaoCamera = false
                             )
                         } else if (statusMestre == "Finalizada") {
-                            Toast.makeText(contexto, " Sua corrida foi finalizada com sucesso!", Toast.LENGTH_LONG).show()
+                            // 🟢 VERIFICAÇÃO DE SEGURANÇA: Checa se a corrida foi paga
+                            val foiPaga = dadosCorrida.optBoolean("pago", true)
+
+                            if (!foiPaga) {
+                                // 🚫 CALOTE DETECTADO: Aciona a expulsão imediatamente!
+                                Toast.makeText(contexto, "🚨 Acesso Bloqueado! Pagamento pendente reportado pelo motorista.", Toast.LENGTH_LONG).show()
+                                aoRegistrarCalote()
+                            } else {
+                                Toast.makeText(contexto, " Sua corrida foi finalizada com sucesso!", Toast.LENGTH_LONG).show()
+                            }
 
                             corridaCriadaId = null
                             aoLimparCorridaGlobal()

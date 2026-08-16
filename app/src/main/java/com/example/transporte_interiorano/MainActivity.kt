@@ -114,6 +114,21 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // 🟢 ESCUTA DE SEGURANÇA: Se a variável de calote for ativada, joga pro Login imediatamente!
+                    LaunchedEffect(bloqueadoPorCalote) {
+                        if (bloqueadoPorCalote) {
+                            veiculoLogado = ""; nomeLogado = ""; emailLogado = ""; usuarioLogado = ""; cpfLogado = ""
+                            telefoneLogado = ""; placaLogada = ""; vagasLogada = ""; ruaLogada = ""; numeroLogado = ""
+                            complementoLogado = ""; bairroLogada = ""; cidadeLogada = ""; estadoLogado = ""; cepLogado = ""
+                            BancoDeDados.fazerLogout()
+
+                            // Tempo mínimo para o Android processar a limpeza antes de pular de tela
+                            delay(500)
+                            telaAtual = "login"
+                            bloqueadoPorCalote = false // Reseta a trava
+                        }
+                    }
+
                     // 🟢 CORREÇÃO: Removido o IF/ELSE bloqueador.
                     // O 'Box' abaixo garante que tudo seja renderizado.
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -507,8 +522,9 @@ class MainActivity : ComponentActivity() {
                                 longitudeAtual = longitudeAtual,
                                 motoristaOnlineGlobal = motoristaOnlineGlobal,
                                 corridaCriadaIdGlobal = corridaCriadaIdGlobal,
-                                corridaAceitaMotoristaGlobalStr = corridaAceitaMotoristaGlobalStr, // 🟢 PASSA A STRING DA CORRIDA DO MOTORISTA
-                                tempoCancelamentoGlobal = tempoCancelamentoGlobal, // 🟢 ADICIONADO: Envia o tempo atual para a tela
+                                corridaAceitaMotoristaGlobalStr = corridaAceitaMotoristaGlobalStr,
+                                tempoCancelamentoGlobal = tempoCancelamentoGlobal, // Envia o tempo atual para a tela
+                                aoRegistrarCalote = { bloqueadoPorCalote = true }, // 🟢 ADICIONADO: Recebe o gatilho da expulsão
                                 aoClicarVoltar = { telaAtual = "escolhaModalidade" },
                                 aoChamarMotorista = { origemDigitada, destinoDigitado, tipoVeiculoSelecionado, aoConfirmarIdNaTela ->
                                     kotlin.concurrent.thread {
@@ -518,8 +534,8 @@ class MainActivity : ComponentActivity() {
 
                                             // 2. DESTINO: Usa o token do Mapbox para achar a coordenada (mesmo sistema da sugestão)
                                             val queryCodificada = java.net.URLEncoder.encode(destinoDigitado, "UTF-8")
-                                            //val tokenMapbox = BuildConfig.MAPBOX_TOKEN
-                                            val tokenMapbox = com.example.transporte_interiorano.dev.BuildConfig.MAPBOX_TOKEN
+                                            val tokenMapbox = BuildConfig.MAPBOX_TOKEN
+                                            //val tokenMapbox = com.example.transporte_interiorano.dev.BuildConfig.MAPBOX_TOKEN
                                             // 🟢 O Mapbox agora vai priorizar endereços que estejam perto do GPS atual do celular!
                                             val urlDestino = URL("https://api.mapbox.com/geocoding/v5/mapbox.places/$queryCodificada.json?access_token=$tokenMapbox&proximity=$longitudeAtual,$latitudeAtual&country=br&limit=1")
 
