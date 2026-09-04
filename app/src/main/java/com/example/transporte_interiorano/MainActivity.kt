@@ -64,13 +64,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize().safeDrawingPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // 1. Variáveis de controle de bloqueio
                     var usuarioBloqueadoGlobal by remember { mutableStateOf(false) }
                     var detalhesDebito by remember { mutableStateOf<JSONObject?>(null) }
                     var verificandoBloqueio by remember { mutableStateOf(true) }
                     var bloqueadoPorCalote by remember { mutableStateOf(false) }
 
-                    // 2. Variáveis de Navegação e Estado do Usuário
                     var telaAtual by rememberSaveable { mutableStateOf(if (veioDaNotificacao) "mapaEmergencial" else "splash") }
                     var latitudeAtual by rememberSaveable { mutableStateOf(-7.9407) }
                     var longitudeAtual by rememberSaveable { mutableStateOf(-34.8728) }
@@ -79,7 +77,10 @@ class MainActivity : ComponentActivity() {
                     var corridaAceitaMotoristaGlobalStr by rememberSaveable { mutableStateOf<String?>(null) }
                     var tempoCancelamentoGlobal by rememberSaveable { mutableStateOf(180) }
 
+                    // 🟢 ADICIONADO: Variáveis globais para Genero e Data de Nascimento
                     var nomeLogado by rememberSaveable { mutableStateOf("") }
+                    var generoLogado by rememberSaveable { mutableStateOf("") }
+                    var dataNascimentoLogada by rememberSaveable { mutableStateOf("") }
                     var cpfLogado by rememberSaveable { mutableStateOf("") }
                     var emailLogado by rememberSaveable { mutableStateOf("") }
                     var telefoneLogado by rememberSaveable { mutableStateOf("") }
@@ -114,23 +115,21 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // 🟢 ESCUTA DE SEGURANÇA: Se a variável de calote for ativada, joga pro Login imediatamente!
                     LaunchedEffect(bloqueadoPorCalote) {
                         if (bloqueadoPorCalote) {
+                            // 🟢 ADICIONADO: Limpeza do gênero e data nascimento ao sofrer calote
                             veiculoLogado = ""; nomeLogado = ""; emailLogado = ""; usuarioLogado = ""; cpfLogado = ""
                             telefoneLogado = ""; placaLogada = ""; vagasLogada = ""; ruaLogada = ""; numeroLogado = ""
                             complementoLogado = ""; bairroLogada = ""; cidadeLogada = ""; estadoLogado = ""; cepLogado = ""
+                            generoLogado = ""; dataNascimentoLogada = ""
                             BancoDeDados.fazerLogout()
 
-                            // Tempo mínimo para o Android processar a limpeza antes de pular de tela
                             delay(500)
                             telaAtual = "login"
-                            bloqueadoPorCalote = false // Reseta a trava
+                            bloqueadoPorCalote = false
                         }
                     }
 
-                    // 🟢 CORREÇÃO: Removido o IF/ELSE bloqueador.
-                    // O 'Box' abaixo garante que tudo seja renderizado.
                     Box(modifier = Modifier.fillMaxSize()) {
 
                         val contextoAndroid = this@MainActivity
@@ -179,7 +178,6 @@ class MainActivity : ComponentActivity() {
 
                         var caronaSelecionada by remember { mutableStateOf<Carona?>(null) }
 
-                        // 🟢 O sistema de navegação roda SEMPRE
                         when (telaAtual) {
                             "splash" -> SplashScreen(onTimeout = { telaAtual = if (cpfLogado.isNotEmpty()) "escolhaModalidade" else "login" })
 
@@ -190,6 +188,8 @@ class MainActivity : ComponentActivity() {
                                         if (usuarioEncontrado != null) {
                                             BancoDeDados.cpfUsuarioLogado = usuarioEncontrado.cpf
                                             nomeLogado = usuarioEncontrado.nome
+                                            generoLogado = usuarioEncontrado.genero // 🟢 Lendo e salvando da nuvem
+                                            dataNascimentoLogada = usuarioEncontrado.dataNascimento // 🟢 Lendo e salvando da nuvem
                                             cpfLogado = usuarioEncontrado.cpf
                                             emailLogado = usuarioEncontrado.email
                                             telefoneLogado = usuarioEncontrado.telefone
@@ -261,6 +261,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onClicarFecharGeral = {
                                     veiculoLogado = ""; nomeLogado = ""; emailLogado = ""; usuarioLogado = ""; cpfLogado = ""
+                                    generoLogado = ""; dataNascimentoLogada = "" // 🟢 Limpeza
                                     BancoDeDados.tokenSessao = ""; BancoDeDados.cpfUsuarioLogado = ""
                                     telaAtual = "login"
                                 },
@@ -269,13 +270,15 @@ class MainActivity : ComponentActivity() {
                             )
 
                             "cadastro" -> CadastroScreen(
-                                aoConcluirCadastro = { nome, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep, username ->
-                                    if (nome.isBlank() || cpf.isBlank() || telefone.isBlank() || email.isBlank() || senha.isBlank() || rua.isBlank() || numero.isBlank() || bairro.isBlank() || cidade.isBlank() || estado.isBlank() || cep.isBlank() || username.isBlank()) {
+                                aoConcluirCadastro = { nome, genero, dataNascimento, cpf, telefone, email, senha, veiculo, placa, vagas, rua, numero, complemento, bairro, cidade, estado, cep, username ->
+                                    if (nome.isBlank() || cpf.isBlank() || telefone.isBlank() || email.isBlank() || senha.isBlank() || rua.isBlank() || numero.isBlank() || bairro.isBlank() || cidade.isBlank() || estado.isBlank() || cep.isBlank() || username.isBlank() || genero.isBlank() || dataNascimento.length < 8) {
                                         erroDeCadastro = "Preencha todos os campos obrigatórios, incluindo o endereço e usuário!"
                                     } else {
                                         erroDeCadastro = "Conectando ao servidor..."
                                         BancoDeDados.cadastrarUsuarioNuvem(
                                             nome,
+                                            genero,
+                                            dataNascimento,
                                             cpf,
                                             telefone,
                                             email,
@@ -293,6 +296,10 @@ class MainActivity : ComponentActivity() {
                                             username
                                         ) { sucesso, mensagem ->
                                             if (sucesso) {
+                                                // 🟢 AQUI ESTÁ A ADIÇÃO DO AVISO DE SUCESSO!
+                                                this@MainActivity.runOnUiThread {
+                                                    Toast.makeText(this@MainActivity, "Conta criada com sucesso! Faça seu login.", Toast.LENGTH_LONG).show()
+                                                }
                                                 erroDeCadastro = ""
                                                 telaAtual = "login"
                                             } else {
@@ -318,7 +325,7 @@ class MainActivity : ComponentActivity() {
                                         enderecoDestino = endDes,
                                         horario = hor,
                                         vagas = vag,
-                                        valorCorrida = valorTotal, // 🟢 Passando o valor da corrida
+                                        valorCorrida = valorTotal,
                                         motorista = nomeMotorista,
                                         motoristaCpf = cpfMotorista
                                     )
@@ -327,7 +334,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 aoClicarSair = { telaAtual = "status" },
                                 cpfLogado = cpfLogado,
-                                nomeLogado = nomeLogado // 🟢 Passando o parâmetro exigido pela tela
+                                nomeLogado = nomeLogado
                             )
 
                             "listaCaronas" -> ListaCaronasScreen(
@@ -405,11 +412,7 @@ class MainActivity : ComponentActivity() {
                                 EditarEventoScreen(
                                     caronaInfo = caronaSelecionada,
                                     aoSalvarAlteracao = { ev, cidO, endO, cidD, endD, hor, vag, valorTotal ->
-                                        android.util.Log.d("EDITAR_EVENTO", "MainActivity recebeu os dados. caronaSelecionada é nula? ${caronaSelecionada == null}")
-
                                         caronaSelecionada?.let { carona ->
-                                            android.util.Log.d("EDITAR_EVENTO", "Disparando atualizarCaronaNoServidor para ID: ${carona.id}")
-
                                             BancoDeDados.atualizarCaronaNoServidor(
                                                 id = carona.id,
                                                 nomeEvento = ev,
@@ -421,13 +424,9 @@ class MainActivity : ComponentActivity() {
                                                 vagas = vag,
                                                 valorCorrida = valorTotal,
                                                 aoConcluir = { sucesso ->
-                                                    android.util.Log.d("EDITAR_EVENTO", "Resposta do servidor recebida. Sucesso = $sucesso")
-
                                                     if (sucesso) {
                                                         BancoDeDados.buscarCaronasDoServidor()
                                                         telaAtual = "status"
-                                                    } else {
-                                                        android.util.Log.e("EDITAR_EVENTO", "O servidor rejeitou a atualização (Código diferente de 200)")
                                                     }
                                                 }
                                             )
@@ -452,24 +451,17 @@ class MainActivity : ComponentActivity() {
                                     corridas = corridasRealizadas,
                                     passageiros = passageirosConduzidos,
                                     aoClicarSair = {
-                                        veiculoLogado = ""
-                                        nomeLogado = ""
-                                        emailLogado = ""
-                                        usuarioLogado = ""
-                                        cpfLogado = ""
+                                        veiculoLogado = ""; nomeLogado = ""; emailLogado = ""; usuarioLogado = ""; cpfLogado = ""
+                                        generoLogado = ""; dataNascimentoLogada = "" // 🟢
                                         telaAtual = "login"
                                     },
                                     aoClicarVoltar = {
-                                        // 🟢 CIRÚRGICO: Seta agora retorna direto para a tela "Como deseja viajar hoje?"
                                         telaAtual = "escolhaModalidade"
                                     },
                                     aoClicarExcluirConta = {
                                         BancoDeDados.excluirUsuario(emailLogado)
-                                        veiculoLogado = ""
-                                        nomeLogado = ""
-                                        emailLogado = ""
-                                        usuarioLogado = ""
-                                        cpfLogado = ""
+                                        veiculoLogado = ""; nomeLogado = ""; emailLogado = ""; usuarioLogado = ""; cpfLogado = ""
+                                        generoLogado = ""; dataNascimentoLogada = "" // 🟢
                                         telaAtual = "login"
                                     },
                                     aoClicarEditar = { telaAtual = "editarPerfil" }
@@ -477,19 +469,21 @@ class MainActivity : ComponentActivity() {
                             }
 
                             "editarPerfil" -> {
+                                // 🟢 ADICIONADO: Popula o objeto Usuario com as variáveis globais genero e data de nascimento
                                 val usuarioAtual = Usuario(
                                     nome = nomeLogado, cpf = cpfLogado, email = emailLogado, telefone = telefoneLogado,
                                     veiculo = veiculoLogado, placa = placaLogada, vagas = vagasLogada,
                                     rua = ruaLogada, numero = numeroLogado, complemento = complementoLogado,
                                     bairro = bairroLogada, cidade = cidadeLogada, estado = estadoLogado, cep = cepLogado,
-                                    usuario = usuarioLogado
+                                    usuario = usuarioLogado, genero = generoLogado, dataNascimento = dataNascimentoLogada
                                 )
                                 EditarPerfilScreen(
                                     usuarioAtual = usuarioAtual,
                                     aoSalvar = { usuarioAtualizado ->
-                                        // 🟢 CIRÚRGICO: Traz todo o bloco de mutação de estado do Compose para rodar de forma segura na Main Thread
                                         this@MainActivity.runOnUiThread {
                                             nomeLogado = usuarioAtualizado.nome
+                                            generoLogado = usuarioAtualizado.genero // 🟢
+                                            dataNascimentoLogada = usuarioAtualizado.dataNascimento // 🟢
                                             emailLogado = usuarioAtualizado.email
                                             telefoneLogado = usuarioAtualizado.telefone
                                             veiculoLogado = usuarioAtualizado.veiculo
@@ -523,20 +517,16 @@ class MainActivity : ComponentActivity() {
                                 motoristaOnlineGlobal = motoristaOnlineGlobal,
                                 corridaCriadaIdGlobal = corridaCriadaIdGlobal,
                                 corridaAceitaMotoristaGlobalStr = corridaAceitaMotoristaGlobalStr,
-                                tempoCancelamentoGlobal = tempoCancelamentoGlobal, // Envia o tempo atual para a tela
-                                aoRegistrarCalote = { bloqueadoPorCalote = true }, // 🟢 ADICIONADO: Recebe o gatilho da expulsão
+                                tempoCancelamentoGlobal = tempoCancelamentoGlobal,
+                                aoRegistrarCalote = { bloqueadoPorCalote = true },
                                 aoClicarVoltar = { telaAtual = "escolhaModalidade" },
                                 aoChamarMotorista = { origemDigitada, destinoDigitado, tipoVeiculoSelecionado, aoConfirmarIdNaTela ->
                                     kotlin.concurrent.thread {
                                         try {
-                                            // 1. ORIGEM: Usa exatamente o texto que o passageiro digitou/editou na tela!
                                             val enderecoPartidaReal = origemDigitada
 
-                                            // 2. DESTINO: Usa o token do Mapbox para achar a coordenada (mesmo sistema da sugestão)
                                             val queryCodificada = java.net.URLEncoder.encode(destinoDigitado, "UTF-8")
                                             val tokenMapbox = BuildConfig.MAPBOX_TOKEN
-                                            //val tokenMapbox = com.example.transporte_interiorano.dev.BuildConfig.MAPBOX_TOKEN
-                                            // 🟢 O Mapbox agora vai priorizar endereços que estejam perto do GPS atual do celular!
                                             val urlDestino = URL("https://api.mapbox.com/geocoding/v5/mapbox.places/$queryCodificada.json?access_token=$tokenMapbox&proximity=$longitudeAtual,$latitudeAtual&country=br&limit=1")
 
                                             val conexaoDestino = urlDestino.openConnection() as java.net.HttpURLConnection
@@ -550,12 +540,11 @@ class MainActivity : ComponentActivity() {
                                                 if (features != null && features.length() > 0) {
                                                     val local = features.getJSONObject(0)
                                                     val center = local.getJSONArray("center")
-                                                    // O Mapbox inverte: retorna [longitude, latitude]
                                                     val lngDestinoReal = center.getDouble(0)
                                                     val latDestinoReal = center.getDouble(1)
 
                                                     BancoDeDados.criarCorridaEmergenteNuvem(
-                                                        enderecoOrigem = enderecoPartidaReal, // 🟢 Vai com o seu número manual para o motorista!
+                                                        enderecoOrigem = enderecoPartidaReal,
                                                         enderecoDestino = destinoDigitado,
                                                         latOrigem = latitudeAtual,
                                                         lngOrigem = longitudeAtual,
@@ -588,14 +577,13 @@ class MainActivity : ComponentActivity() {
                                 },
                                 aoLimparCorridaGlobal = {
                                     corridaCriadaIdGlobal = null
-                                    tempoCancelamentoGlobal = 180 // 🟢 ADICIONADO: Reseta o cronômetro persistente quando a corrida fecha
+                                    tempoCancelamentoGlobal = 180
                                 },
-                                // 🟢 ADICIONADO: Sincroniza cada segundo regredido com o estado da MainActivity
                                 aoAtualizarTempoCancelamentoGlobal = { tempoRestante ->
                                     tempoCancelamentoGlobal = tempoRestante
                                 },
                                 aoAtualizarCorridaAceitaMotoristaGlobal = { jsonStr ->
-                                    corridaAceitaMotoristaGlobalStr = jsonStr // 🟢 CONTROLA O SALVAMENTO REATIVO DA CORRIDA DO MOTORISTA
+                                    corridaAceitaMotoristaGlobalStr = jsonStr
                                 },
                                 aoAlternarDisponibilidadeMotorista = { ficarOnline ->
                                     motoristaOnlineGlobal = ficarOnline
@@ -633,7 +621,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                    } // 🟢 CORREÇÃO: FECHAMENTO DO BLOCO ELSE
+                    }
                 }
             }
         }

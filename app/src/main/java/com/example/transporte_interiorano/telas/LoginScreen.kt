@@ -165,6 +165,20 @@ fun LoginScreen(
                                 }
                             )
 
+                            // 🟢 ADIÇÃO PARA O MODAL: Validação em tempo real da senha forte
+                            val senhaValida = novaSenhaRecup.length >= 8 &&
+                                    novaSenhaRecup.any { it.isUpperCase() } &&
+                                    novaSenhaRecup.any { it.isDigit() } &&
+                                    novaSenhaRecup.any { !it.isLetterOrDigit() }
+
+                            if (novaSenhaRecup.isNotEmpty() && !senhaValida) {
+                                Text(
+                                    text = "⚠️ A senha deve conter ao menos 8 caracteres, 1 letra maiúscula, 1 número e 1 caractere especial.",
+                                    color = VermelhoErro, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
+                            }
+
                             // 🟢 CAMPO ALTERADO: Confirmar Nova Senha agora com Olho funcional
                             OutlinedTextField(
                                 value = confirmarSenhaRecup,
@@ -217,6 +231,19 @@ fun LoginScreen(
                                     statusCorModal = VermelhoErro
                                     return@Button
                                 }
+
+                                // 🟢 ADIÇÃO: Trava o clique se a senha for fraca
+                                val senhaForteConfirmada = novaSenhaRecup.length >= 8 &&
+                                        novaSenhaRecup.any { it.isUpperCase() } &&
+                                        novaSenhaRecup.any { it.isDigit() } &&
+                                        novaSenhaRecup.any { !it.isLetterOrDigit() }
+
+                                if (!senhaForteConfirmada) {
+                                    mensagemStatusModal = "A senha escolhida é muito fraca."
+                                    statusCorModal = VermelhoErro
+                                    return@Button
+                                }
+
                                 if (novaSenhaRecup != confirmarSenhaRecup) {
                                     mensagemStatusModal = "As senhas não coincidem!"
                                     statusCorModal = VermelhoErro
@@ -257,6 +284,6 @@ fun LoginScreen(
         Text("Não possui conta? Crie a sua abaixo.", fontSize = 14.sp, color = Color.Gray)
         Text("Sua conta é permanente até que você decida excluí-la.", fontSize = 12.sp, color = AzulPrincipal, modifier = Modifier.padding(bottom = 8.dp))
 
-        OutlinedButton(onClick = aoClicarCriarConta, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Criar conta", color = AzulPrincipal) }
+        OutlinedButton(onClick = aoClicarCriarConta, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Cadastre-se", color = AzulPrincipal) }
     }
 }

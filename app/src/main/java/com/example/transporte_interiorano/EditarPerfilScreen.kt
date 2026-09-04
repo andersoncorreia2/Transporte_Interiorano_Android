@@ -32,12 +32,18 @@ fun EditarPerfilScreen(
     aoCancelar: () -> Unit
 ) {
     var nome by remember { mutableStateOf(usuarioAtual.nome) }
-    var cpf by remember { mutableStateOf(usuarioAtual.cpf) }
-    var telefone by remember { mutableStateOf(usuarioAtual.telefone) }
+
+    var genero by remember { mutableStateOf(usuarioAtual.genero) }
+    var generoExpandido by remember { mutableStateOf(false) }
+
+    // 🟢 LIMPEZA INICIAL DE DADOS: O Compose remove os caracteres especiais recebidos do BD e deixa apenas números
+    var dataNascimento by remember { mutableStateOf(usuarioAtual.dataNascimento.filter { it.isDigit() }) }
+    var cpf by remember { mutableStateOf(usuarioAtual.cpf.filter { it.isDigit() }) }
+    var telefone by remember { mutableStateOf(usuarioAtual.telefone.filter { it.isDigit() }) }
+    var cep by remember { mutableStateOf(usuarioAtual.cep.filter { it.isDigit() }) }
+
     var email by remember { mutableStateOf(usuarioAtual.email) }
     var username by remember { mutableStateOf(usuarioAtual.usuario) }
-
-    var cep by remember { mutableStateOf(usuarioAtual.cep) }
     var rua by remember { mutableStateOf(usuarioAtual.rua) }
     var numero by remember { mutableStateOf(usuarioAtual.numero) }
     var complemento by remember { mutableStateOf(usuarioAtual.complemento) }
@@ -47,7 +53,6 @@ fun EditarPerfilScreen(
 
     var ofertarCarona by remember { mutableStateOf(usuarioAtual.veiculo.isNotEmpty()) }
 
-    // Extração segura do prefixo Carro/Moto vindo do Banco de Dados
     var tipoVeiculo by remember { mutableStateOf(if (usuarioAtual.veiculo.startsWith("Moto")) "Moto" else "Carro") }
     var veiculo by remember {
         mutableStateOf(
@@ -93,6 +98,36 @@ fun EditarPerfilScreen(
                 value = nome, onValueChange = { nome = it }, label = { Text("Nome completo") }, modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
+
+            // 🟢 ADICIONADO: Layout do Gênero e Data de Nascimento
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                ExposedDropdownMenuBox(
+                    expanded = generoExpandido,
+                    onExpandedChange = { generoExpandido = !generoExpandido },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = genero, onValueChange = {}, readOnly = true, singleLine = true,
+                        label = { Text("Gênero") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = generoExpandido) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = generoExpandido, onDismissRequest = { generoExpandido = false }) {
+                        DropdownMenuItem(text = { Text("M") }, onClick = { genero = "M"; generoExpandido = false })
+                        DropdownMenuItem(text = { Text("F") }, onClick = { genero = "F"; generoExpandido = false })
+                    }
+                }
+
+                OutlinedTextField(
+                    value = dataNascimento,
+                    onValueChange = { dataNascimento = it.filter { char -> char.isDigit() }.take(8) },
+                    label = { Text("Data Nasc.") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                    visualTransformation = DataNascimentoVisualTransformation() // Usando a mesma classe que definimos no Cadastro
+                )
+            }
 
             OutlinedTextField(
                 value = cpf, onValueChange = { }, label = { Text("CPF (Não editável)") }, modifier = Modifier.fillMaxWidth(),
@@ -178,7 +213,6 @@ fun EditarPerfilScreen(
                                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                                 modifier = Modifier.fillMaxWidth().menuAnchor()
                             )
-                            // 🟢 ALTERAÇÃO 1: Adicionada a injeção automática de vagas sugeridas com base no tipo selecionado (4 ou 1)
                             ExposedDropdownMenu(expanded = tipoVeiculoExpandido, onDismissRequest = { tipoVeiculoExpandido = false }) {
                                 DropdownMenuItem(text = { Text("Carro") }, onClick = { tipoVeiculo = "Carro"; vagas = "4"; tipoVeiculoExpandido = false })
                                 DropdownMenuItem(text = { Text("Moto") }, onClick = { tipoVeiculo = "Moto"; vagas = "1"; tipoVeiculoExpandido = false })
@@ -192,7 +226,6 @@ fun EditarPerfilScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(value = placa, onValueChange = { placa = it.uppercase().take(7) }, label = { Text("Placa") }, modifier = Modifier.weight(1.5f), visualTransformation = PlacaVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
 
-                            // 🟢 ALTERAÇÃO 2: Mantido aberto e editável com teclado numérico para suportar customizações (ex: 6 ou 11 vagas)
                             OutlinedTextField(
                                 value = vagas,
                                 onValueChange = { vagas = it.filter { char -> char.isDigit() } },
@@ -209,20 +242,25 @@ fun EditarPerfilScreen(
 
             Button(
                 onClick = {
-                    if (email.isNotBlank() && nome.isNotBlank()) {
+                    if (email.isNotBlank() && nome.isNotBlank() && dataNascimento.length == 8 && genero.isNotBlank()) {
                         salvando = true
 
+                        // 🟢 FORMATAÇÃO FINAL PARA O BANCO DE DADOS
+                        val cpfF = if (cpf.length == 11) "${cpf.substring(0,3)}.${cpf.substring(3,6)}.${cpf.substring(6,9)}-${cpf.substring(9,11)}" else cpf
+                        val telF = if (telefone.length == 11) "(${telefone.substring(0,2)}) ${telefone.substring(2,7)}-${telefone.substring(7,11)}" else telefone
+                        val cepF = if (cep.length == 8) "${cep.substring(0,5)}-${cep.substring(5,8)}" else cep
+                        val dataF = if (dataNascimento.length == 8) "${dataNascimento.substring(0,2)}/${dataNascimento.substring(2,4)}/${dataNascimento.substring(4,8)}" else dataNascimento
+
                         val usuarioAtualizado = Usuario(
-                            nome = nome, cpf = cpf, telefone = telefone, email = email, senha = usuarioAtual.senha,
+                            nome = nome, cpf = cpfF, telefone = telF, email = email, senha = usuarioAtual.senha,
                             veiculo = if (ofertarCarona) "$tipoVeiculo - $veiculo" else "",
                             placa = if (ofertarCarona) placa else "",
                             vagas = if (ofertarCarona) vagas else "0",
-                            rua = rua, numero = numero, complemento = complemento, bairro = bairro, cidade = cidade, estado = estado, cep = cep,
-                            usuario = username
+                            rua = rua, numero = numero, complemento = complemento, bairro = bairro, cidade = cidade, estado = estado, cep = cepF,
+                            usuario = username, genero = genero, dataNascimento = dataF
                         )
                         BancoDeDados.atualizarUsuarioNuvem(usuarioAtualizado) { sucesso ->
                             if (sucesso) {
-                                // 🟢 GARANTE EXECUÇÃO SEGURA NA THREAD PRINCIPAL DO ANDROID
                                 (context as? android.app.Activity)?.runOnUiThread {
                                     Toast.makeText(context, "Atualização realizada com sucesso!", Toast.LENGTH_SHORT).show()
                                     aoSalvar(usuarioAtualizado)

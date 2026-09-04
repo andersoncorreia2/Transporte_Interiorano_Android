@@ -9,7 +9,6 @@ import java.net.URL
 import kotlin.concurrent.thread
 import android.os.Handler
 import android.os.Looper
-//import com.example.transporte_interiorano.BuildConfig
 
 data class Carona(
     val id: Int = 0,
@@ -29,12 +28,13 @@ data class Carona(
     val status: String = "Aberta"
 )
 
+// 🟢 ADICIONADO: genero e dataNascimento na Model
 data class Usuario(
     val nome: String, val cpf: String, val email: String, val telefone: String,
     val veiculo: String = "", val placa: String = "", val senha: String = "", val vagas: String = "0",
     val rua: String = "", val numero: String = "", val complemento: String = "",
     val bairro: String = "", val cidade: String = "", val estado: String = "", val cep: String = "",
-    val usuario: String = ""
+    val usuario: String = "", val genero: String = "", val dataNascimento: String = ""
 )
 
 data class Pedido(
@@ -47,24 +47,15 @@ data class Pedido(
     val cidade_origem: String = "",
     val cidade_destino: String = "",
     val horario: String = "",
-    val dataCriacao: String = "", //Adicionado em 13/07/2026 às 15:03
-    val dataFinalizacao: String = "", // 🟢 NOVA INFORMAÇÃO
-    val motoristaNome: String = "", // 🟢 ADICIONADO: Recebe o nome do motorista
-    val dataLimitePagamento: String = "" // 🟢 NOVO: Para calcular a carência
+    val dataCriacao: String = "",
+    val dataFinalizacao: String = "",
+    val motoristaNome: String = "",
+    val dataLimitePagamento: String = ""
 )
 
 object BancoDeDados {
-    // 🟢 CENTRALIZADO: Link do túnel ngrok gerado no seu VS Code para o ambiente de desenvolvimento local
     //const val BASE_URL = "https://obnoxious-audience-finite.ngrok-free.dev"
-    // Mude para o IP real da sua ancoragem atual:
-    //private const val BASE_URL = "http://10.233.20.194:5000"
-    //private const val BASE_URL = "http://10.127.212.194:5000"
-    //private const val BASE_URL = "http://192.168.1.66:5000"
-    //private const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
     const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
-
-    // 🟢 O link agora muda sozinho conforme o botão mágico escolhido!
-    //val BASE_URL = BuildConfig.BASE_URL
 
     var caronas = mutableStateListOf<Carona>()
 
@@ -98,10 +89,10 @@ object BancoDeDados {
                         endereco_origem = item.optString("endereco_origem", ""),
                         cidade_destino = item.optString("cidade_destino", ""),
                         endereco_destino = item.optString("endereco_destino", ""),
-                        horario = item.optString("horario", ""), // 🟢 Seguro contra crash
-                        vagas = item.optString("vagas", ""),       // 🟢 Seguro contra crash
-                        valor_corrida = item.optString("valor_corrida", "0.00"), // 🟢 Seguro contra crash
-                        motorista = item.optString("motorista", ""), // 🟢 Seguro contra crash
+                        horario = item.optString("horario", ""),
+                        vagas = item.optString("vagas", ""),
+                        valor_corrida = item.optString("valor_corrida", "0.00"),
+                        motorista = item.optString("motorista", ""),
                         motorista_cpf = item.optString("motorista_cpf", ""),
                         corridas_realizadas = item.optInt("corridas_realizadas", 0),
                         passageiros_conduzidos = item.optInt("passageiros_conduzidos", 0),
@@ -129,7 +120,7 @@ object BancoDeDados {
                             cidade_destino = item.optString("cidade_destino", ""),
                             horario = item.optString("horario", ""),
                             dataCriacao = item.optString("data_criacao", ""),
-                            dataLimitePagamento = item.optString("data_limite_pagamento", "") // 🟢 NOVO!
+                            dataLimitePagamento = item.optString("data_limite_pagamento", "")
                         )
                     )
                 }
@@ -244,7 +235,6 @@ object BancoDeDados {
     ) {
         thread {
             try {
-                // Rota PUT mapeada para atualizar a carona pelo ID correspondente
                 val conexao = URL("$BASE_URL/caronas/$id").openConnection() as HttpURLConnection
                 conexao.requestMethod = "PUT"
                 conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -410,7 +400,6 @@ object BancoDeDados {
 
                 val usuarioTratado = usuarioRecebido.trim().lowercase()
 
-                // Envelopamento seguro usando JSONObject nativo
                 val json = JSONObject().apply {
                     put("usuario", usuarioTratado)
                     put("senha", senhaRecebida)
@@ -422,7 +411,6 @@ object BancoDeDados {
                 escritor.close()
 
                 if (conexao.responseCode == 200) {
-                    // 💡 CORREÇÃO: Consumo seguro e explícito do buffer de resposta para evitar estouros
                     val textoResposta = conexao.inputStream.bufferedReader().use { it.readText() }
                     val res = JSONObject(textoResposta)
                     tokenSessao = res.getString("token")
@@ -444,12 +432,13 @@ object BancoDeDados {
                         cidade = resUsuario.optString("cidade", ""),
                         estado = resUsuario.optString("estado", ""),
                         cep = resUsuario.optString("cep", ""),
-                        usuario = resUsuario.optString("usuario", "")
+                        usuario = resUsuario.optString("usuario", ""),
+                        genero = resUsuario.optString("genero", ""), // 🟢 Lendo do Python
+                        dataNascimento = resUsuario.optString("data_nascimento", "") // 🟢 Lendo do Python
                     )
 
                     cpfUsuarioLogado = usuarioLogado.cpf
 
-                    // 🟢 CORREÇÃO: Garante que o sucesso do login e a troca de tela rodem de forma segura na Main Thread com o token pronto
                     Handler(Looper.getMainLooper()).post {
                         aoTerminar(usuarioLogado, "")
                     }
@@ -465,8 +454,11 @@ object BancoDeDados {
         }
     }
 
+    // 🟢 ADICIONADO: Parametros de Genero e Data de Nascimento
     fun cadastrarUsuarioNuvem(
         nome: String,
+        genero: String,
+        dataNascimento: String,
         cpf: String,
         telefone: String,
         email: String,
@@ -496,6 +488,8 @@ object BancoDeDados {
 
                 val json = JSONObject().apply {
                     put("nome", nome)
+                    put("genero", genero)
+                    put("data_nascimento", dataNascimento)
                     put("cpf", cpf)
                     put("telefone", telefone)
                     put("email", email.trim().lowercase())
@@ -536,7 +530,6 @@ object BancoDeDados {
     ) {
         thread {
             try {
-                // 💡 CORREÇÃO CRÍTICA: Codifica o nome de usuário para aceitar pontos (.), espaços e acentos na URL
                 val usuarioCodificado = java.net.URLEncoder.encode(username.trim(), "UTF-8")
 
                 val url = URL("$BASE_URL/verificar_usuario/$usuarioCodificado")
@@ -556,15 +549,12 @@ object BancoDeDados {
                         list.add(arr.getString(i))
                     }
 
-                    // Retorna os dados com sucesso para a interface
                     aoResultar(disp, list)
                 } else {
-                    // Se o servidor responder algo diferente de 200, assume que está disponível para não travar o usuário
                     aoResultar(true, emptyList())
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Em caso de falha de rede física, assume verdadeiro para o cadastro passar
                 aoResultar(true, emptyList())
             }
         }
@@ -644,14 +634,13 @@ object BancoDeDados {
                             evento_nome = item.optString("evento_nome", ""),
                             cidade_origem = item.optString("cidade_origem", ""),
                             cidade_destino = item.optString("cidade_destino", ""),
-                            //horario = item.optString("horario", ""),
                             horario = item.optString("data_criacao", ""),
                             dataCriacao = item.optString("data_criacao", ""),
                             dataFinalizacao = item.optString("data_finalizacao", ""),
                             motoristaNome = item.optString(
                                 "motorista_nome",
                                 ""
-                            ) // 🟢 CAPTURA DO NOME DO MOTORISTA DO PYTHON
+                            )
                         )
                     )
                 }
@@ -687,7 +676,6 @@ object BancoDeDados {
                             evento_nome = item.optString("evento_nome", ""),
                             cidade_origem = item.optString("cidade_origem", ""),
                             cidade_destino = item.optString("cidade_destino", ""),
-                            //horario = item.optString("horario", ""),
                             horario = item.optString("data_criacao", ""),
                             dataCriacao = item.optString("data_criacao", ""),
                             dataFinalizacao = item.optString("data_finalizacao", "")
@@ -711,11 +699,13 @@ object BancoDeDados {
                 conexao.setRequestProperty("Authorization", "Bearer $tokenSessao")
                 conexao.doOutput = true
 
+                // 🟢 ADICIONADO: Novas colunas na Interpolação Segura do JSON
                 val json = """{
                     "nome": "${usuario.nome}", "telefone": "${usuario.telefone}", "email": "${usuario.email}", 
                     "veiculo": "${usuario.veiculo}", "placa": "${usuario.placa}", "vagas": "${usuario.vagas}",
                     "rua": "${usuario.rua}", "numero": "${usuario.numero}", "complemento": "${usuario.complemento}",
-                    "bairro": "${usuario.bairro}", "cidade": "${usuario.cidade}", "estado": "${usuario.estado}", "cep": "${usuario.cep}"
+                    "bairro": "${usuario.bairro}", "cidade": "${usuario.cidade}", "estado": "${usuario.estado}", "cep": "${usuario.cep}",
+                    "genero": "${usuario.genero}", "data_nascimento": "${usuario.dataNascimento}"
                 }"""
 
                 val escritor = OutputStreamWriter(conexao.outputStream)
@@ -899,7 +889,7 @@ object BancoDeDados {
                 conexao.setRequestProperty(
                     "Authorization",
                     "Bearer $tokenSessao"
-                ) // Envia o token do passageiro logado
+                )
                 conexao.doOutput = true
 
                 val json = JSONObject().apply {
@@ -923,11 +913,9 @@ object BancoDeDados {
                     val res = JSONObject(textoResposta)
                     val msg = res.optString("mensagem", "Procurando motoristas...")
 
-                    // 🟢 CAPTURA DINÂMICA: Pega o ID real retornado pelo Python no Render
                     val idCorridaGerado = res.optInt("corrida_id", 0)
 
                     Handler(Looper.getMainLooper()).post {
-                        // Envia o ID real para a tela do passageiro
                         aoConcluir(true, msg, idCorridaGerado)
                     }
                 } else {
@@ -950,7 +938,6 @@ object BancoDeDados {
     fun ficarOnlineRadarMotorista(aoConcluir: (Boolean, String) -> Unit) {
         thread {
             try {
-                // Altera a modalidade ativa do motorista para 'Emergencial' na nuvem
                 val url = URL("$BASE_URL/usuarios/alterar_modalidade")
                 val conexao = url.openConnection() as HttpURLConnection
                 conexao.requestMethod = "POST"
@@ -968,7 +955,6 @@ object BancoDeDados {
                 escritor.close()
 
                 if (conexao.responseCode == 200) {
-                    // 🟢 Captura a resposta do servidor Render com segurança
                     val textoResposta = conexao.inputStream.bufferedReader().use { it.readText() }
                     val msg =
                         JSONObject(textoResposta).optString("mensagem", "Modo emergencial ativo!")
@@ -1005,7 +991,6 @@ object BancoDeDados {
         }
         thread {
             try {
-                // Consulta o serviço gratuito de Geocodificação Nominatim (OpenStreetMap) filtrando por Pernambuco
                 val queryCodificada = java.net.URLEncoder.encode("$textoDigitado, PE", "UTF-8")
                 val url =
                     URL("https://nominatim.openstreetmap.org/search?q=$queryCodificada&format=json&addressdetails=1&limit=5")
@@ -1013,7 +998,7 @@ object BancoDeDados {
                 conexao.setRequestProperty(
                     "User-Agent",
                     "com.example.transporte_interiorano"
-                ) // Exigido pelo OpenStreetMap
+                )
                 conexao.connectTimeout = 4000
                 conexao.readTimeout = 4000
 
@@ -1050,7 +1035,7 @@ object BancoDeDados {
                 conexao.setRequestProperty(
                     "Authorization",
                     "Bearer $tokenSessao"
-                ) // Envia o token do motorista logado
+                )
                 conexao.connectTimeout = 4000
                 conexao.readTimeout = 4000
 
@@ -1063,7 +1048,6 @@ object BancoDeDados {
                         listaTemporaria.add(jsonArray.getJSONObject(i))
                     }
 
-                    // Atualiza a lista observável na Thread principal do Android Studio
                     Handler(Looper.getMainLooper()).post {
                         corridasEmergentesDisponiveis.clear()
                         corridasEmergentesDisponiveis.addAll(listaTemporaria)
@@ -1154,8 +1138,6 @@ object BancoDeDados {
         }
     }
 
-    // 🟢 FUNÇÃO ADICIONADA: Altera dinamicamente o status do modo emergencial via PUT seguro com JWT
-    // 🟢 VERSÃO FINANCEIRA ATUALIZADA: Altera o status e envia reporte de pagamento e valor
     fun atualizarStatusCorridaEmergenteNuvem(
         corridaId: Int,
         statusAlvo: String,
@@ -1237,7 +1219,6 @@ object BancoDeDados {
                 if (conexao.responseCode == 200) {
                     val resposta = conexao.inputStream.bufferedReader().use { it.readText() }
                     val json = JSONObject(resposta)
-                    // Se o JSON trouxer um "id", significa que ele encontrou uma corrida ativa pendente
                     if (json.has("id")) {
                         Handler(Looper.getMainLooper()).post { aoReceber(json) }
                     } else {
@@ -1252,7 +1233,6 @@ object BancoDeDados {
         }
     }
 
-    // 🟢 ADICIONADO: Puxa o histórico de corridas emergentes concluídas do passageiro e converte em Pedido
     fun buscarHistoricoEmergencialPassageiro(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
         thread {
             try {
@@ -1267,7 +1247,7 @@ object BancoDeDados {
                         listaEmergencial.add(
                             Pedido(
                                 idReal = item.getInt("id"),
-                                caronaId = 0, // Emergencial não possui ID de carona programada
+                                caronaId = 0,
                                 passageiro = "",
                                 passageiroCpf = cpf,
                                 status = "Finalizada",
@@ -1291,7 +1271,6 @@ object BancoDeDados {
         }
     }
 
-    // 🟢 ADICIONADO: Puxa o histórico de corridas emergentes concluídas do motorista e converte em Pedido
     fun buscarHistoricoEmergencialMotorista(cpf: String, aoReceber: (List<Pedido>) -> Unit) {
         thread {
             try {
@@ -1330,7 +1309,6 @@ object BancoDeDados {
         }
     }
 
-    // 🟢 8. VERIFICAR SE O PASSAGEIRO JÁ VALIDOU A IDENTIDADE
     fun verificarStatusIdentidadeNuvem(aoResultado: (Boolean) -> Unit) {
         thread {
             try {
@@ -1355,7 +1333,6 @@ object BancoDeDados {
         }
     }
 
-    // 🟢 9. VALIDAR IDENTIDADE INFORMANDO O CPF
     fun validarIdentidadeNuvem(
         cpfInformado: String,
         telefoneInformado: String,
@@ -1372,7 +1349,7 @@ object BancoDeDados {
 
                 val json = JSONObject().apply {
                     put("cpf", cpfInformado)
-                    put("telefone", telefoneInformado) // 🟢 Enviando o telefone junto
+                    put("telefone", telefoneInformado)
                 }
 
                 val escritor = OutputStreamWriter(conexao.outputStream)
@@ -1406,7 +1383,6 @@ object BancoDeDados {
         }
     }
 
-    // FUNÇÃO DE SEGURANÇA: Limpa completamente os tokens e variáveis da memória (Logout Forçado)
     fun fazerLogout() {
         tokenSessao = ""
         cpfUsuarioLogado = ""

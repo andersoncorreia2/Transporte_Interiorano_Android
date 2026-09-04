@@ -16,7 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -106,14 +105,37 @@ class PlacaVisualTransformation : VisualTransformation {
     }
 }
 
+class DataNascimentoVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val trimmed = if (text.text.length >= 8) text.text.substring(0..7) else text.text
+        var out = ""
+        for (i in trimmed.indices) {
+            out += trimmed[i]
+            if (i == 1 || i == 3) out += "/"
+        }
+        val offsetTranslator = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int =
+                if (offset <= 1) offset else if (offset <= 3) offset + 1 else if (offset <= 7) offset + 2 else 10
+            override fun transformedToOriginal(offset: Int): Int =
+                if (offset <= 2) offset else if (offset <= 5) offset - 1 else if (offset <= 10) offset - 2 else 8
+        }
+        return TransformedText(AnnotatedString(out), offsetTranslator)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CadastroScreen(
-    aoConcluirCadastro: (String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String) -> Unit,
+    aoConcluirCadastro: (String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String, String) -> Unit,
     aoClicarFechar: () -> Unit,
     mensagemErro: String = ""
 ) {
     var nome by remember { mutableStateOf("") }
+
+    var genero by remember { mutableStateOf("") }
+    var dataNascimento by remember { mutableStateOf("") }
+    var generoExpandido by remember { mutableStateOf(false) }
+
     var cpf by remember { mutableStateOf("") }
     var telefone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -125,7 +147,6 @@ fun CadastroScreen(
     var tipoVeiculo by remember { mutableStateOf("Carro") }
     var veiculo by remember { mutableStateOf("") }
     var placa by remember { mutableStateOf("") }
-    // 🟢 ALTERAÇÃO INICIAL: Vagas agora começam com o valor pré-carregado como "4" correspondente ao tipo Carro
     var vagas by remember { mutableStateOf("4") }
 
     var cep by remember { mutableStateOf("") }
@@ -139,8 +160,6 @@ fun CadastroScreen(
     var ofertarCarona by remember { mutableStateOf(false) }
     var senhaVisivel by remember { mutableStateOf(false) }
     var cpfJaExiste by remember { mutableStateOf(false) }
-
-    // 🟢 ADIÇÃO: Estados dos Termos
     var termosAceitos by remember { mutableStateOf(false) }
     var showPlaceholderTermos by remember { mutableStateOf(false) }
 
@@ -152,18 +171,12 @@ fun CadastroScreen(
     val estadosBrasil = listOf("AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO")
 
     LaunchedEffect(nome) {
-        // 🟢 DEBOUNCE: Aguarda 500ms após o usuário parar de digitar
         delay(500)
-
         val nomeTratado = nome.trim()
-
-        // 🟢 VALIDAÇÃO: Só chama o banco se não estiver vazio e tiver um espaço
         if (nomeTratado.isNotBlank() && nomeTratado.contains(" ")) {
             val partes = nomeTratado.split("\\s+".toRegex())
             if (partes.size >= 2) {
                 val combinacaoBase = "${partes.first().lowercase()}.${partes.last().lowercase()}"
-
-                // Evita chamar o banco se o username for exatamente o que já está na tela
                 if (username != combinacaoBase) {
                     username = combinacaoBase
                     BancoDeDados.verificarDisponibilidadeUsuario(combinacaoBase) { livre, lista ->
@@ -213,13 +226,46 @@ fun CadastroScreen(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
 
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                ExposedDropdownMenuBox(
+                    expanded = generoExpandido,
+                    onExpandedChange = { generoExpandido = !generoExpandido },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = genero, onValueChange = {}, readOnly = true, singleLine = true,
+                        label = { Text("Gênero") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = generoExpandido) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = generoExpandido, onDismissRequest = { generoExpandido = false }) {
+                        DropdownMenuItem(text = { Text("M") }, onClick = { genero = "M"; generoExpandido = false })
+                        DropdownMenuItem(text = { Text("F") }, onClick = { genero = "F"; generoExpandido = false })
+                    }
+                }
+
+                OutlinedTextField(
+                    value = dataNascimento,
+                    onValueChange = { dataNascimento = it.filter { char -> char.isDigit() }.take(8) },
+                    label = { Text("Data Nasc.") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                    visualTransformation = DataNascimentoVisualTransformation()
+                )
+            }
+
             OutlinedTextField(
                 value = cpf,
                 onValueChange = { novoTexto ->
                     val soNumeros = novoTexto.filter { it.isDigit() }.take(11)
                     cpf = soNumeros
                     if (soNumeros.length < 11) cpfJaExiste = false
-                    else if (soNumeros.length == 11) BancoDeDados.verificarCpfExistente(soNumeros) { existe -> cpfJaExiste = existe }
+                    else if (soNumeros.length == 11) {
+                        // 🟢 VERIFICAÇÃO FORMATADA: Pesquisa no BD usando a máscara
+                        val cpfFormatado = "${soNumeros.substring(0,3)}.${soNumeros.substring(3,6)}.${soNumeros.substring(6,9)}-${soNumeros.substring(9,11)}"
+                        BancoDeDados.verificarCpfExistente(cpfFormatado) { existe -> cpfJaExiste = existe }
+                    }
                 },
                 label = { Text("CPF") }, modifier = Modifier.fillMaxWidth(), isError = cpfJaExiste,
                 supportingText = { if (cpfJaExiste) Text("⚠️ Este CPF já está cadastrado!", color = VermelhoErro, fontWeight = FontWeight.Bold) },
@@ -326,14 +372,13 @@ fun CadastroScreen(
             OutlinedTextField(
                 value = senha, onValueChange = { senha = it }, label = { Text("Senha") }, modifier = Modifier.fillMaxWidth(),
                 visualTransformation = if (senhaVisivel) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next), // 🟢 Alterado para Next
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
                 trailingIcon = {
                     val image = if (senhaVisivel) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                     IconButton(onClick = { senhaVisivel = !senhaVisivel }) { Icon(imageVector = image, contentDescription = null) }
                 }
             )
 
-            // 🟢 ADICIONADO CIRURGICAMENTE: Validação de critérios robustos em tempo real
             val senhaValida = senha.length >= 8 &&
                     senha.any { it.isUpperCase() } &&
                     senha.any { it.isDigit() } &&
@@ -347,7 +392,6 @@ fun CadastroScreen(
                 )
             }
 
-            // 🟢 ADICIONADO CIRURGICAMENTE: Segundo campo obrigatório de Confirmação de Senha
             OutlinedTextField(
                 value = confirmarSenha, onValueChange = { confirmarSenha = it }, label = { Text("Confirmar Senha") }, modifier = Modifier.fillMaxWidth(),
                 visualTransformation = if (confirmarSenhaVisivel) VisualTransformation.None else PasswordVisualTransformation(),
@@ -386,7 +430,6 @@ fun CadastroScreen(
                                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                                 modifier = Modifier.fillMaxWidth().menuAnchor()
                             )
-                            // 🟢 ALTERAÇÃO 1: Injeta dinamicamente as vagas predefinidas no clique da modalidade (4 para carro, 1 para moto)
                             ExposedDropdownMenu(expanded = tipoVeiculoExpandido, onDismissRequest = { tipoVeiculoExpandido = false }) {
                                 DropdownMenuItem(text = { Text("Carro") }, onClick = { tipoVeiculo = "Carro"; vagas = "4"; tipoVeiculoExpandido = false })
                                 DropdownMenuItem(text = { Text("Moto") }, onClick = { tipoVeiculo = "Moto"; vagas = "1"; tipoVeiculoExpandido = false })
@@ -399,7 +442,6 @@ fun CadastroScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(value = placa, onValueChange = { placa = it.uppercase().take(7) }, label = { Text("Placa") }, modifier = Modifier.weight(1.5f), visualTransformation = PlacaVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
 
-                            // 🟢 ALTERAÇÃO 2: Campo numérico aberto e 100% editável para suportar carros de 7 lugares ou vans de 11 vagas
                             OutlinedTextField(
                                 value = vagas,
                                 onValueChange = { vagas = it.filter { char -> char.isDigit() } },
@@ -412,7 +454,6 @@ fun CadastroScreen(
                 }
             }
 
-            // 🟢 ADIÇÃO: Row do Checkbox (Termos)
             Row(
                 modifier = Modifier.padding(vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -429,7 +470,6 @@ fun CadastroScreen(
                 )
             }
 
-            // 🟢 AVISO TEMPORÁRIO (Dialog)
             if (showPlaceholderTermos) {
                 AlertDialog(
                     onDismissRequest = { showPlaceholderTermos = false },
@@ -444,25 +484,27 @@ fun CadastroScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                // DEPOIS
 
-                // 1. Defina a regra de validação antes do botão
-                val isFormValid = termosAceitos && !cpfJaExiste && usuarioDisponivel && username.isNotBlank() && senhaValida && senha == confirmarSenha
+                val isFormValid = termosAceitos && !cpfJaExiste && usuarioDisponivel && username.isNotBlank() && senhaValida && senha == confirmarSenha && genero.isNotBlank() && dataNascimento.length == 8
 
-                // 2. O botão utiliza o estado de habilitação
                 Button(
                     onClick = {
-                        // O código aqui fica limpo, pois só executa se o botão estiver enabled
                         val veiculoFinal = if (ofertarCarona) "$tipoVeiculo - $veiculo" else ""
                         val placaFinal = if (ofertarCarona) placa.uppercase() else ""
                         val vagasFinal = if (ofertarCarona) vagas else "0"
 
-                        aoConcluirCadastro(nome, cpf, telefone, email, senha, veiculoFinal, placaFinal, vagasFinal, rua, numero, complemento, bairro, cidade, estado, cep, username)
+                        // 🟢 FORMATAÇÃO FINAL PARA O BANCO DE DADOS
+                        val cpfF = if (cpf.length == 11) "${cpf.substring(0,3)}.${cpf.substring(3,6)}.${cpf.substring(6,9)}-${cpf.substring(9,11)}" else cpf
+                        val telF = if (telefone.length == 11) "(${telefone.substring(0,2)}) ${telefone.substring(2,7)}-${telefone.substring(7,11)}" else telefone
+                        val cepF = if (cep.length == 8) "${cep.substring(0,5)}-${cep.substring(5,8)}" else cep
+                        val dataF = if (dataNascimento.length == 8) "${dataNascimento.substring(0,2)}/${dataNascimento.substring(2,4)}/${dataNascimento.substring(4,8)}" else dataNascimento
+
+                        aoConcluirCadastro(nome, genero, dataF, cpfF, telF, email, senha, veiculoFinal, placaFinal, vagasFinal, rua, numero, complemento, bairro, cidade, estado, cepF, username)
                     },
-                    enabled = isFormValid, // 🟢 O botão bloqueia cliques automaticamente se for false
+                    enabled = isFormValid,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = VerdeBotao,          // Cor quando ativo
-                        disabledContainerColor = Color.Gray   // 🟢 Cor automática quando desativado
+                        containerColor = VerdeBotao,
+                        disabledContainerColor = Color.Gray
                     ),
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(8.dp)
@@ -476,6 +518,7 @@ fun CadastroScreen(
                         rua = ""; numero = ""; complemento = ""; bairro = ""; cidade = ""; estado = ""; cep = "";
                         confirmarSenha = ""; senhaVisivel = false; confirmarSenhaVisivel = false;
                         ofertarCarona = false; cpfJaExiste = false; senhaVisivel = false; usuarioDisponivel = true;
+                        genero = ""; dataNascimento = "";
                         sugestoesNomes.clear()
                     },
                     modifier = Modifier.fillMaxWidth().height(44.dp)
