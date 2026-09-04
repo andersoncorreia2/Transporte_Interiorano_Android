@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.sp
 import com.example.transporte_interiorano.BancoDeDados
 import com.example.transporte_interiorano.ui.theme.*
 import kotlinx.coroutines.delay
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 
 class CepVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
@@ -454,6 +457,9 @@ fun CadastroScreen(
                 }
             }
 
+            // 🟢 FERRAMENTA PARA ABRIR LINKS
+            val context = LocalContext.current
+
             Row(
                 modifier = Modifier.padding(vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -464,22 +470,17 @@ fun CadastroScreen(
                 )
                 Text(
                     text = "Li e concordo com os Termos de Uso e Política de Privacidade",
-                    modifier = Modifier.clickable { showPlaceholderTermos = true },
+                    modifier = Modifier.clickable {
+                        // ABRE A PÁGINA TERMOS.HTML DO SEU SITE NO NAVEGADOR DO CELULAR
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://andersoncorreia2.github.io/transporte-interiorano-web/termos.html"))
+                        context.startActivity(intent)
+                    },
                     color = AzulPrincipal,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            if (showPlaceholderTermos) {
-                AlertDialog(
-                    onDismissRequest = { showPlaceholderTermos = false },
-                    title = { Text("Termos em Desenvolvimento") },
-                    text = { Text("Estamos redigindo nossos Termos de Uso e Política de Privacidade. Em breve estarão disponíveis para consulta.") },
-                    confirmButton = {
-                        Button(onClick = { showPlaceholderTermos = false }) { Text("OK") }
-                    }
-                )
-            }
+            // (O bloco 'if (showPlaceholderTermos)' foi removido porque não usamos mais a janela de aviso)
 
             Spacer(modifier = Modifier.height(4.dp))
 

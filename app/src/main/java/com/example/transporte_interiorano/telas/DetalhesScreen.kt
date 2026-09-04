@@ -178,7 +178,7 @@ fun DetalhesScreen(
 
         val contextoAtual = LocalContext.current
 
-        // ADICIONADO: Lógica para calcular o Saldo Restante
+        // AADICIONADO: Lógica para calcular o Saldo Restante
         val statusPedidoAtual = meuPedido?.status?.lowercase() ?: ""
         // Permite pagar o saldo tanto no prazo normal das 24h quanto nos últimos 15 min de Carência!
         val ehTaxaPaga = statusPedidoAtual.contains("taxa paga") || statusPedidoAtual.contains("carencia")

@@ -32,6 +32,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun EscolhaModalidadeScreen(
+    nomeUsuario: String,
     onModalidadeSelecionada: (String) -> Unit,
     onClicarFecharGeral: () -> Unit,
     onClicarPerfil: () -> Unit,
@@ -223,6 +224,17 @@ fun EscolhaModalidadeScreen(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    val primeiroNome = nomeUsuario.split(" ").firstOrNull()?.uppercase() ?: ""
+                    if (primeiroNome.isNotEmpty()) {
+                        Text(
+                            text = "OLÁ, $primeiroNome!",
+                            fontSize = 24.sp, // Tamanho aumentado para ficar bem legível
+                            fontWeight = FontWeight.Bold, // Adicionado negrito para dar peso na tela
+                            color = Color.DarkGray, // Cor mais escura para dar contraste e não sumir
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
                     Text(
                         "Como deseja viajar hoje?",
                         fontSize = 26.sp,

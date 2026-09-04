@@ -221,6 +221,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             "escolhaModalidade" -> EscolhaModalidadeScreen(
+                                nomeUsuario = nomeLogado,
                                 estaBloqueado = usuarioBloqueadoGlobal,
                                 verificandoBloqueio = verificandoBloqueio,
                                 onQuitarDebito = {
