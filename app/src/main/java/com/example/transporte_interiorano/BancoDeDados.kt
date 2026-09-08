@@ -54,8 +54,8 @@ data class Pedido(
 )
 
 object BancoDeDados {
-    const val BASE_URL = "https://obnoxious-audience-finite.ngrok-free.dev"
-    //const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
+    //const val BASE_URL = "https://obnoxious-audience-finite.ngrok-free.dev"
+    const val BASE_URL = "https://transporte-interiorano-backend.onrender.com"
 
     var caronas = mutableStateListOf<Carona>()
 
