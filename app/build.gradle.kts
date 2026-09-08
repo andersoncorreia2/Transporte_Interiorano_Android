@@ -88,4 +88,7 @@ dependencies {
 
     // Mapas
     implementation("org.osmdroid:osmdroid-android:6.1.18")
+
+    // 🟢 WebSockets para Tempo Real (O Rádio Comunicador)
+    implementation("io.socket:socket.io-client:2.1.1")
 }
